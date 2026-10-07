@@ -1,4 +1,4 @@
-import { clipSegments, hasAnyStatus } from "./coverage";
+import { fitSegments, hasAnyStatus } from "./coverage";
 import { newId } from "./defaults";
 import type { ParsedItem } from "./icsParse";
 import type { FamilyEvent, ISODate, Source, Task, UpstreamSnapshot } from "./types";
@@ -150,7 +150,7 @@ export function acceptUpstream(ev: FamilyEvent, now: string): FamilyEvent {
     description: undefined,
     location: undefined,
     ...p,
-    segments: clipSegments(ev.segments ?? [], p.start, p.end),
+    segments: fitSegments(ev.segments ?? [], p.start, p.end),
     upstreamFlag: null,
     upstreamPending: null,
     upstreamIgnored: null,

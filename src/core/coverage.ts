@@ -152,6 +152,21 @@ export function clipSegments(segments: Segment[], start: ISODate, end: ISODate):
     .filter((s) => s.start <= s.end);
 }
 
+/** Clip segments to a (new) date range and fill any gaps with empty segments, so every day stays editable. */
+export function fitSegments(segments: Segment[], start: ISODate, end: ISODate): Segment[] {
+  const clipped = clipSegments(segments, start, end).sort((a, b) => (a.start < b.start ? -1 : 1));
+  if (!clipped.length) return [];
+  const out: Segment[] = [];
+  let cursor = start;
+  for (const s of clipped) {
+    if (s.start > cursor) out.push({ id: newId(), start: cursor, end: addDays(s.start, -1), statuses: {} });
+    out.push(s);
+    if (s.end >= cursor) cursor = addDays(s.end, 1);
+  }
+  if (cursor <= end) out.push({ id: newId(), start: cursor, end, statuses: {} });
+  return out;
+}
+
 /** Whether every segment has the same status for all given kids. */
 export function isUniform(segments: Segment[], kidIds: string[]): boolean {
   return segments.every((s) => {

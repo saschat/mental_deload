@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clipSegments,
   coverageFraction,
+  fitSegments,
   isUndecided,
   kidSegmentSummary,
   relevantKidIds,
@@ -97,6 +98,18 @@ describe("segment editing", () => {
     const out = clipSegments(split, "2026-07-09", "2026-07-20");
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ start: "2026-07-09", end: "2026-07-14" });
+  });
+
+  it("fits segments to an extended range with empty gap segments", () => {
+    const split = splitSegment(base, "s", "2026-07-08");
+    const out = fitSegments(split, "2026-07-03", "2026-07-20");
+    expect(out.map((s) => [s.start, s.end])).toEqual([
+      ["2026-07-03", "2026-07-07"],
+      ["2026-07-08", "2026-07-14"],
+      ["2026-07-15", "2026-07-20"],
+    ]);
+    expect(out[2].statuses).toEqual({});
+    expect(isUndecided({ start: "2026-07-03", end: "2026-07-20", segments: out, kidIds: [] }, [{ id: "a" }])).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "extends": "@vue/tsconfig/tsconfig.json",
-  "include": ["src/sw.ts", "src/core/**/*.ts", "src/lib/idb.ts"],
+  "include": ["src/sw.ts", "src/core/**/*.ts", "src/lib/idb.ts", "src/lib/reminderCheck.ts"],
   "exclude": ["src/**/*.test.ts"],
   "compilerOptions": {
     "composite": true,

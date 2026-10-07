@@ -107,13 +107,14 @@ export function planSegmentTasks(args: {
 }): SegmentTaskPlan {
   const groups = segmentStatusGroups(args.segment, args.kidIds);
   const statuses = new Set(groups.map((g) => g.status));
-  const segTasks = args.tasks.filter((t) => t.eventId === args.event.id && t.segmentId === args.segment.id);
+  const eventTasks = args.tasks.filter((t) => t.eventId === args.event.id);
+  const segTasks = eventTasks.filter((t) => t.segmentId === args.segment.id);
   const generated = segTasks.filter((t) => t.generated);
   const staleRoots = generated.filter((t) => t.status && !statuses.has(t.status));
   const stale = withDescendants(staleRoots, args.tasks);
   const existingStatuses = new Set(generated.map((t) => t.status));
   const split = groups.length > 1;
-  let order = Math.max(-1, ...segTasks.map((t) => t.order)) + 1;
+  let order = Math.max(-1, ...eventTasks.map((t) => t.order)) + 1;
   const create: Task[] = [];
   for (const g of groups) {
     if (existingStatuses.has(g.status)) continue;
