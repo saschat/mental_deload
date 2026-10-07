@@ -47,7 +47,7 @@ Copy `.env.example` to `.env.local` if you need to override anything.
 
 | Variable          | Purpose                                                                                   |
 | ----------------- | ----------------------------------------------------------------------------------------- |
-| `VITE_APP_ID`     | Bazaar app ID. Defaults to `test` (the mock).                                             |
+| `VITE_APP_ID`     | Bazaar app ID. Defaults to `test` in dev. Required for production builds.                |
 | `VITE_BAZAAR_URI` | Bazaar server. Defaults to `http://localhost:3377` in dev, the SDK default in production. |
 | `VITE_BASE`       | Base path for hosting under a sub-path, e.g. `/mental_deload/` for GitHub Pages.          |
 
@@ -62,7 +62,7 @@ Copy `.env.example` to `.env.local` if you need to override anything.
 `.github/workflows/deploy.yml` builds and deploys on every push to `main`:
 
 1. In the repository settings, go to **Pages** and set **Source: GitHub Actions**.
-2. Under **Settings → Secrets and variables → Actions → Variables**, add `BAZAAR_APP_ID` with your app ID.
+2. Under **Settings → Secrets and variables → Actions**, add `BAZAAR_APP_ID` with your app ID. A repository secret (Secrets tab) or a repository variable (Variables tab) both work. The value is not an environment variable on `github-pages`; the build job does not use that environment.
 3. Push to `main`. The workflow runs the tests, builds with `VITE_BASE=/<repo-name>/` and deploys `dist/`.
 
 For a custom domain or user site (served from `/`), drop `VITE_BASE` from the workflow.

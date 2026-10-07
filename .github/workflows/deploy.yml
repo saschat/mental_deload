@@ -13,10 +13,21 @@ jobs:
         uses: pnpm/action-setup@v4
       - name: Build Vue app
         env:
-          # Set the repository variable BAZAAR_APP_ID to your app ID from cloud.bzr.dev/developers.
-          VITE_APP_ID: ${{ vars.BAZAAR_APP_ID }}
+          # App ID from cloud.bzr.dev/developers. Accept either the repository
+          # variable or the repository secret named BAZAAR_APP_ID (Settings →
+          # Secrets and variables → Actions). Secrets are not visible as vars.
+          VITE_APP_ID: ${{ vars.BAZAAR_APP_ID || secrets.BAZAAR_APP_ID }}
           VITE_BASE: /${{ github.event.repository.name }}/
         run: |
+          if [ -z "$VITE_APP_ID" ]; then
+            echo "VITE_APP_ID is empty. Set the BAZAAR_APP_ID repository secret or variable."
+            exit 1
+          fi
+          if [ "$VITE_APP_ID" = "test" ]; then
+            echo "VITE_APP_ID is the placeholder test. Set BAZAAR_APP_ID to the real app id."
+            exit 1
+          fi
+          echo "VITE_APP_ID is a non-test value (length ${#VITE_APP_ID})"
           pnpm install --frozen-lockfile
           pnpm test
           pnpm run build

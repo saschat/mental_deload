@@ -5,8 +5,16 @@ import { ref } from "vue";
 export const connectError = ref<string | null>(null);
 export const apiConnected = ref(false);
 
+const appId =
+  import.meta.env.VITE_APP_ID || (import.meta.env.DEV ? "test" : "");
+if (!appId) {
+  throw new Error(
+    "VITE_APP_ID is missing. Production builds need the BAZAAR_APP_ID Actions secret or repository variable.",
+  );
+}
+
 const config: BazaarOptions = {
-  appId: import.meta.env.VITE_APP_ID || "test",
+  appId,
   loginRedirectUri: window.location.origin + window.location.pathname,
   onApiConnect: async () => {
     apiConnected.value = true;
