@@ -41,6 +41,26 @@ export function isKidDecided(event: Pick<FamilyEvent, "start" | "end" | "segment
   return uncoveredRanges(event, kidId).length === 0;
 }
 
+/**
+ * Upcoming hides an event when every relevant kid is fully covered and every
+ * coverage status on those kids is "not relevant". A gap, or any other status
+ * (including on a second kid), keeps the event visible.
+ */
+export function hiddenBecauseNotRelevant(
+  event: Pick<FamilyEvent, "start" | "end" | "segments" | "kidIds">,
+  kids: Pick<Kid, "id">[],
+): boolean {
+  const ids = relevantKidIds(event, kids);
+  if (!ids.length) return false;
+  return ids.every((id) => {
+    if (!isKidDecided(event, id)) return false;
+    const statuses = (event.segments ?? [])
+      .map((s) => s.statuses?.[id])
+      .filter((s): s is StatusKey => !!s);
+    return statuses.length > 0 && statuses.every((s) => s === "not_relevant");
+  });
+}
+
 /** An event is undecided until every day is covered for every relevant kid. */
 export function isUndecided(
   event: Pick<FamilyEvent, "start" | "end" | "segments" | "kidIds">,

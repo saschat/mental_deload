@@ -4,6 +4,7 @@ import {
   coverageDisplayName,
   coverageFraction,
   fitSegments,
+  hiddenBecauseNotRelevant,
   isUndecided,
   kidSegmentSummary,
   relevantKidIds,
@@ -57,6 +58,33 @@ describe("coverage", () => {
     expect(isUndecided(e, kids)).toBe(true);
     expect(isUndecided({ ...e, kidIds: ["a"] }, kids)).toBe(false);
     expect(coverageFraction(e, kids)).toBeCloseTo(21 / 28);
+  });
+
+  it("is hidden because not relevant only when every relevant kid is fully not relevant", () => {
+    const full = (statuses: Segment["statuses"]): Segment => ({
+      id: "1",
+      start: "2026-07-01",
+      end: "2026-07-14",
+      statuses,
+    });
+    const both = ev([full({ a: "not_relevant", b: "not_relevant" })]);
+    expect(hiddenBecauseNotRelevant(both, kids)).toBe(true);
+    expect(isUndecided(both, kids)).toBe(false);
+
+    const weeks: Segment[] = [
+      { id: "1", start: "2026-07-01", end: "2026-07-07", statuses: { a: "not_relevant", b: "not_relevant" } },
+      { id: "2", start: "2026-07-08", end: "2026-07-14", statuses: { a: "not_relevant", b: "not_relevant" } },
+    ];
+    expect(hiddenBecauseNotRelevant(ev(weeks), kids)).toBe(true);
+
+    expect(hiddenBecauseNotRelevant(ev([full({ a: "not_relevant" })]), kids)).toBe(false);
+    expect(hiddenBecauseNotRelevant(ev([full({ a: "not_relevant", b: "grandparents" })]), kids)).toBe(false);
+    expect(hiddenBecauseNotRelevant(ev([]), kids)).toBe(false);
+    expect(hiddenBecauseNotRelevant(ev([full({ a: "not_relevant", b: "not_relevant" })]), [])).toBe(false);
+
+    const onlyA = ev([full({ a: "not_relevant", b: "grandparents" })], { kidIds: ["a"] });
+    expect(hiddenBecauseNotRelevant(onlyA, kids)).toBe(true);
+    expect(isUndecided(ev([full({ a: "not_relevant" })]), kids)).toBe(true);
   });
 
   it("ignores segment parts outside the event", () => {

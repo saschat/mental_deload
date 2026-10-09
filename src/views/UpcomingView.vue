@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import KidAvatar from "@/components/KidAvatar.vue";
 import { formatRange, parseLocal } from "@/core/dates";
-import { isUndecided, kidSegmentSummary, relevantKidIds } from "@/core/coverage";
+import { hiddenBecauseNotRelevant, isUndecided, kidSegmentSummary, relevantKidIds } from "@/core/coverage";
 import { CATEGORY_LABELS, STATUS_LABELS, statusColor } from "@/core/defaults";
 import { taskProgress } from "@/core/tasks";
 import type { FamilyEvent, StatusKey } from "@/core/types";
@@ -10,10 +10,11 @@ import { timeLabel } from "@/lib/eventMeta";
 import { useDataStore } from "@/stores/data";
 
 const data = useDataStore();
-const filter = ref<"all" | "undecided" | string>("all");
+const filter = ref<"upcoming" | "all" | "undecided" | string>("upcoming");
 
 const filtered = computed(() =>
   data.upcomingEvents.filter((e) => {
+    if (filter.value === "upcoming") return !hiddenBecauseNotRelevant(e, data.kids);
     if (filter.value === "all") return true;
     if (filter.value === "undecided") return isUndecided(e, data.kids);
     return relevantKidIds(e, data.kids).includes(filter.value);
@@ -37,7 +38,8 @@ const months = computed(() => {
 
 function kidsFor(ev: FamilyEvent) {
   const kids = data.relevantKids(ev);
-  return filter.value !== "all" && filter.value !== "undecided" ? kids.filter((k) => k.id === filter.value) : kids;
+  const broad = filter.value === "upcoming" || filter.value === "all" || filter.value === "undecided";
+  return broad ? kids : kids.filter((k) => k.id === filter.value);
 }
 
 function pillText(ev: FamilyEvent, kidId: string): { text: string; status: StatusKey | null } {
@@ -67,6 +69,7 @@ function day(ev: FamilyEvent) {
 <template>
   <div class="page">
     <div class="chips">
+      <button class="chip" :class="{ selected: filter === 'upcoming' }" @click="filter = 'upcoming'">Upcoming</button>
       <button class="chip" :class="{ selected: filter === 'all' }" @click="filter = 'all'">All</button>
       <button v-for="k in data.sortedKids" :key="k.id" class="chip" :class="{ selected: filter === k.id }" @click="filter = k.id">
         <span class="dot" :style="{ background: k.color }" /> {{ k.name }}
@@ -76,7 +79,7 @@ function day(ev: FamilyEvent) {
 
     <div v-if="!months.length" class="empty">
       <div class="big">🗓️</div>
-      <p>No upcoming events{{ filter !== "all" ? " for this filter" : "" }}.</p>
+      <p>No upcoming events{{ filter !== "upcoming" ? " for this filter" : "" }}.</p>
     </div>
 
     <section v-for="m in months" :key="m.key">
