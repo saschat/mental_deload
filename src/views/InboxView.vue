@@ -3,8 +3,9 @@ import { computed, ref } from "vue";
 import EventCard from "@/components/EventCard.vue";
 import StatusSheet from "@/components/StatusSheet.vue";
 import AppIcon from "@/components/AppIcon.vue";
-import { KID_COLORS } from "@/core/defaults";
-import type { FamilyEvent } from "@/core/types";
+import { CATEGORIES, KID_COLORS } from "@/core/defaults";
+import { matchesCategory, matchesInboxFilter } from "@/core/inbox";
+import type { Category, FamilyEvent } from "@/core/types";
 import { urgency } from "@/lib/eventMeta";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
@@ -14,10 +15,26 @@ const ui = useUiStore();
 
 const sheetEvent = ref<FamilyEvent | null>(null);
 const liveSheetEvent = computed(() => (sheetEvent.value ? (data.eventsById.get(sheetEvent.value.id) ?? null) : null));
+const categories = ref<Category[]>([]);
 
-const flagged = computed(() => data.flaggedEvents.slice().sort((a, b) => (a.start < b.start ? -1 : 1)));
-const undecided = computed(() => data.undecidedEvents.filter((e) => !e.upstreamFlag));
-const urgentCount = computed(() => data.undecidedEvents.filter((e) => urgency(e, data.today) === "red").length);
+function toggleCategory(key: Category) {
+  categories.value = categories.value.includes(key)
+    ? categories.value.filter((c) => c !== key)
+    : [...categories.value, key];
+}
+
+const inCategory = (e: FamilyEvent) => matchesCategory(e.category, categories.value);
+const flagged = computed(() =>
+  data.flaggedEvents.filter(inCategory).slice().sort((a, b) => (a.start < b.start ? -1 : 1)),
+);
+const undecided = computed(() =>
+  data.upcomingEvents.filter((e) => matchesInboxFilter(e, data.kids, data.today, { categories: categories.value })),
+);
+const undecidedCount = computed(() => data.undecidedEvents.filter(inCategory).length);
+const urgentCount = computed(
+  () => data.undecidedEvents.filter((e) => inCategory(e) && urgency(e, data.today) === "red").length,
+);
+const narrowed = computed(() => categories.value.length > 0);
 
 const kidNames = ref(["", ""]);
 async function addKids() {
@@ -58,9 +75,22 @@ async function addKids() {
     </div>
 
     <div class="chips">
-      <span class="chip selected">{{ data.undecidedEvents.length }} undecided</span>
+      <span class="chip selected">{{ undecidedCount }} undecided</span>
       <span class="chip" :class="{ urgent: urgentCount }">{{ urgentCount }} urgent</span>
       <RouterLink to="/tasks" class="chip" style="text-decoration: none">{{ data.openTasks.length }} open tasks</RouterLink>
+    </div>
+    <div class="chips" aria-label="Category">
+      <button
+        v-for="c in CATEGORIES"
+        :key="c.key"
+        type="button"
+        class="chip"
+        :class="{ selected: categories.includes(c.key) }"
+        :aria-pressed="categories.includes(c.key)"
+        @click="toggleCategory(c.key)"
+      >
+        {{ c.label }}
+      </button>
     </div>
 
     <template v-if="flagged.length">
@@ -72,7 +102,11 @@ async function addKids() {
     <EventCard v-for="ev in undecided" :key="ev.id" :event="ev" @set-status="sheetEvent = $event" />
 
     <div v-if="!undecided.length && !flagged.length" class="empty">
-      <template v-if="data.events.length">
+      <template v-if="narrowed && (data.undecidedEvents.length || data.flaggedEvents.length)">
+        <div class="big">🗓️</div>
+        <p>No events for this category.</p>
+      </template>
+      <template v-else-if="data.events.length">
         <div class="big">🎉</div>
         <p>Everything upcoming is decided.</p>
         <RouterLink to="/upcoming">See upcoming events</RouterLink>

@@ -15,31 +15,26 @@ function ev(category: Category, statuses?: Record<string, StatusKey>) {
 }
 
 describe("matchesUpcomingFilter", () => {
-  it("shows every category when the category filter is empty", () => {
-    const filter = { scope: "upcoming" as const, categories: [] };
+  it("does not filter by category", () => {
     for (const category of ["school", "vacation", "birthday", "weekend", "other"] as const) {
-      expect(matchesUpcomingFilter(ev(category), kids, filter)).toBe(true);
+      expect(matchesUpcomingFilter(ev(category), kids, "upcoming")).toBe(true);
     }
   });
 
-  it("weekend and school together exclude vacation", () => {
-    const filter = { scope: "upcoming" as const, categories: ["weekend", "school"] as const };
-    expect(matchesUpcomingFilter(ev("weekend"), kids, filter)).toBe(true);
-    expect(matchesUpcomingFilter(ev("school"), kids, filter)).toBe(true);
-    expect(matchesUpcomingFilter(ev("vacation"), kids, filter)).toBe(false);
-    expect(matchesUpcomingFilter(ev("birthday"), kids, filter)).toBe(false);
-  });
-
-  it("still hides fully not-relevant events on the upcoming scope", () => {
+  it("hides fully not-relevant events on the upcoming scope and shows them on all", () => {
     const hidden = ev("weekend", { a: "not_relevant", b: "not_relevant" });
-    expect(matchesUpcomingFilter(hidden, kids, { scope: "upcoming", categories: [] })).toBe(false);
-    expect(matchesUpcomingFilter(hidden, kids, { scope: "upcoming", categories: ["weekend"] })).toBe(false);
-    expect(matchesUpcomingFilter(hidden, kids, { scope: "all", categories: ["weekend"] })).toBe(true);
-    expect(matchesUpcomingFilter(hidden, kids, { scope: "all", categories: ["school"] })).toBe(false);
+    expect(matchesUpcomingFilter(hidden, kids, "upcoming")).toBe(false);
+    expect(matchesUpcomingFilter(hidden, kids, "all")).toBe(true);
   });
 
-  it("ANDs the category chips with a kid chip", () => {
-    expect(matchesUpcomingFilter(ev("weekend"), kids, { scope: "a", categories: ["weekend"] })).toBe(true);
-    expect(matchesUpcomingFilter(ev("weekend"), kids, { scope: "a", categories: ["school"] })).toBe(false);
+  it("undecided scope keeps only open coverage", () => {
+    expect(matchesUpcomingFilter(ev("school"), kids, "undecided")).toBe(true);
+    expect(matchesUpcomingFilter(ev("school", { a: "childcare", b: "childcare" }), kids, "undecided")).toBe(false);
+  });
+
+  it("kid scope keeps events relevant to that kid", () => {
+    const onlyB = { ...ev("vacation"), kidIds: ["b"] };
+    expect(matchesUpcomingFilter(onlyB, kids, "b")).toBe(true);
+    expect(matchesUpcomingFilter(onlyB, kids, "a")).toBe(false);
   });
 });

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import CategoryChips from "@/components/CategoryChips.vue";
 import { fitSegments } from "@/core/coverage";
-import { CATEGORIES } from "@/core/defaults";
 import { detectCategory } from "@/core/icsParse";
 import { stripUndefined } from "@/core/importDiff";
 import type { Category } from "@/core/types";
@@ -84,13 +84,10 @@ async function save() {
           Title and dates come from the calendar “{{ data.sources.find((s) => s.id === existing?.sourceId)?.name }}” and update on re-import.
         </p>
 
-        <label class="field">
+        <div class="field">
           <span>Category</span>
-          <select v-model="form.category">
-            <option v-if="!imported" value="">Detect from title</option>
-            <option v-for="c in CATEGORIES" :key="c.key" :value="c.key">{{ c.label }}</option>
-          </select>
-        </label>
+          <CategoryChips v-model="form.category" :empty-label="imported ? undefined : 'Detect from title'" />
+        </div>
 
         <div v-if="data.kids.length" class="field">
           <span>Relevant for</span>

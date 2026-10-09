@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AppIcon from "@/components/AppIcon.vue";
+import CategoryChips from "@/components/CategoryChips.vue";
 import CoverageEditor from "@/components/CoverageEditor.vue";
 import TaskTree from "@/components/TaskTree.vue";
 import { diffDays, formatDate, formatRange, relativeDays } from "@/core/dates";
@@ -10,7 +11,7 @@ import { CATEGORY_LABELS } from "@/core/defaults";
 import { acceptUpstream, ignoreUpstream } from "@/core/importDiff";
 import { reminderSchedule } from "@/core/reminders";
 import { taskProgress, withDescendants } from "@/core/tasks";
-import type { Task } from "@/core/types";
+import type { Category, Task } from "@/core/types";
 import { timeLabel } from "@/lib/eventMeta";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
@@ -59,6 +60,11 @@ const dueSoonTasks = computed(
   () => tasks.value.filter((t) => !t.done && t.due && diffDays(data.today, t.due) <= data.settings.taskDueSoonDays).length,
 );
 
+async function setCategory(category: Category | "") {
+  if (!ev.value || !category || ev.value.category === category || data.readOnly) return;
+  await ui.run(() => data.saveEvent({ ...ev.value!, category }));
+}
+
 async function accept() {
   if (!ev.value) return;
   await ui.run(() => data.saveEvent(acceptUpstream(ev.value!, new Date().toISOString())), "Updated from calendar");
@@ -97,9 +103,9 @@ async function remove() {
       <div>{{ formatRange(ev.start, ev.end) }}<template v-if="timeLabel(ev)"> · {{ timeLabel(ev) }}</template></div>
       <div class="row wrap" style="margin-top: 8px; gap: 6px">
         <span class="tag" :class="{ danger: undecided }">{{ countdown }}</span>
-        <span class="tag">{{ CATEGORY_LABELS[ev.category] }}</span>
         <span v-if="!undecided" class="tag" style="background: #e3f4e5; color: var(--ok)">Decided</span>
       </div>
+      <CategoryChips :model-value="ev.category" :disabled="data.readOnly" @update:model-value="setCategory" />
       <p v-if="ev.location" class="small muted" style="margin-bottom: 0">📍 {{ ev.location }}</p>
       <p v-if="ev.description" class="small muted desc">{{ ev.description }}</p>
     </div>

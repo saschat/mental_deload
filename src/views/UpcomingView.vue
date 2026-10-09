@@ -3,30 +3,19 @@ import { computed, ref } from "vue";
 import KidAvatar from "@/components/KidAvatar.vue";
 import { formatRange, parseLocal } from "@/core/dates";
 import { kidSegmentSummary } from "@/core/coverage";
-import { CATEGORIES, CATEGORY_LABELS, statusColor, statusLabel } from "@/core/defaults";
+import { CATEGORY_LABELS, statusColor, statusLabel } from "@/core/defaults";
 import { taskProgress } from "@/core/tasks";
 import { matchesUpcomingFilter } from "@/core/upcoming";
-import type { Category, FamilyEvent, StatusKey } from "@/core/types";
+import type { FamilyEvent, StatusKey } from "@/core/types";
 import { timeLabel } from "@/lib/eventMeta";
 import { useDataStore } from "@/stores/data";
 
 const data = useDataStore();
 const filter = ref<"upcoming" | "all" | "undecided" | string>("upcoming");
-const categories = ref<Category[]>([]);
 
-function toggleCategory(key: Category) {
-  categories.value = categories.value.includes(key)
-    ? categories.value.filter((c) => c !== key)
-    : [...categories.value, key];
-}
+const filtered = computed(() => data.upcomingEvents.filter((e) => matchesUpcomingFilter(e, data.kids, filter.value)));
 
-const filtered = computed(() =>
-  data.upcomingEvents.filter((e) =>
-    matchesUpcomingFilter(e, data.kids, { scope: filter.value, categories: categories.value }),
-  ),
-);
-
-const narrowed = computed(() => filter.value !== "upcoming" || categories.value.length > 0);
+const narrowed = computed(() => filter.value !== "upcoming");
 
 const months = computed(() => {
   const groups: { key: string; label: string; events: FamilyEvent[] }[] = [];
@@ -82,19 +71,6 @@ function day(ev: FamilyEvent) {
         <span class="dot" :style="{ background: k.color }" /> {{ k.name }}
       </button>
       <button class="chip" :class="{ selected: filter === 'undecided' }" @click="filter = 'undecided'">Undecided only</button>
-    </div>
-    <div class="chips" aria-label="Category">
-      <button
-        v-for="c in CATEGORIES"
-        :key="c.key"
-        type="button"
-        class="chip"
-        :class="{ selected: categories.includes(c.key) }"
-        :aria-pressed="categories.includes(c.key)"
-        @click="toggleCategory(c.key)"
-      >
-        {{ c.label }}
-      </button>
     </div>
 
     <div v-if="!months.length" class="empty">
