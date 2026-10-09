@@ -38,7 +38,7 @@ export function statusLabel(key: StatusKey | string | null | undefined): string 
 
 export const CATEGORIES: { key: Category; label: string }[] = [
   { key: "school", label: "School" },
-  { key: "vacation", label: "Vacation / holiday" },
+  { key: "vacation", label: "Vacation" },
   { key: "birthday", label: "Birthday" },
   { key: "weekend", label: "Weekend" },
   { key: "other", label: "Other" },
