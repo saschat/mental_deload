@@ -15,7 +15,7 @@ export type StatusKey =
   | "attending"
   | "not_relevant";
 
-export type Category = "school" | "vacation" | "birthday" | "other";
+export type Category = "school" | "vacation" | "birthday" | "weekend" | "other";
 
 /** "auto" lets the importer guess the category from the event title. */
 export type SourceCategory = Category | "auto";
@@ -32,7 +32,8 @@ export interface Kid {
 export interface Source {
   id: string;
   name: string;
-  type: "url" | "file";
+  /** "weekends" is generated in-app (Saturday–Sunday), not fetched from ICS. */
+  type: "url" | "file" | "weekends";
   url?: string;
   defaultCategory: SourceCategory;
   kidIds: string[];

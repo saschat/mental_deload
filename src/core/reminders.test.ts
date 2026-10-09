@@ -43,6 +43,16 @@ describe("activeTier", () => {
     expect(activeTier(-1, standard)).toBeNull();
   });
 
+  it("uses close-in weekend tiers and does not repeat after them", () => {
+    const weekend = settings.reminderTiers.weekend;
+    expect(weekend).toEqual({ tiers: [14, 3], repeatEveryDays: 0 });
+    expect(activeTier(20, weekend)).toBeNull();
+    expect(activeTier(14, weekend)).toBe("t14");
+    expect(activeTier(4, weekend)).toBe("t14");
+    expect(activeTier(3, weekend)).toBe("t3");
+    expect(activeTier(0, weekend)).toBe("t3");
+  });
+
   it("uses birthday tiers with 2-day repeats", () => {
     expect(activeTier(30, birthday)).toBeNull();
     expect(activeTier(21, birthday)).toBe("t21");

@@ -3,18 +3,18 @@ import { defineStore } from "pinia";
 import type { CollectionAPI, Doc } from "@bzr/bazaar";
 
 import { apiConnected, bzr } from "@/bazaar";
-import { addMonths, today as todayOf } from "@/core/dates";
+import { addMonths, HORIZON_MONTHS, today as todayOf } from "@/core/dates";
 import { isUndecided, relevantKidIds } from "@/core/coverage";
 import { normalizeSettings, newId, SETTINGS_ID } from "@/core/defaults";
 import { parseIcs } from "@/core/icsParse";
 import { planImport, stripUndefined, summarize, type ImportPlan, type ImportSummary } from "@/core/importDiff";
+import { planWeekends } from "@/core/weekends";
 import { planSegmentTasks, withDescendants, type SegmentTaskPlan } from "@/core/tasks";
 import type { FamilyEvent, Kid, Segment, Settings, Source, Task } from "@/core/types";
 import { fetchIcs } from "@/lib/fetchIcs";
 import { idbClear, idbGet, idbSet, SNAPSHOT_KEY, type Snapshot } from "@/lib/idb";
 
-/** How far ahead recurring events are expanded. */
-export const HORIZON_MONTHS = 18;
+export { HORIZON_MONTHS };
 
 const WRITE_TIMEOUT_MS = 15_000;
 const CONNECT_TIMEOUT_MS = 8_000;
@@ -380,6 +380,20 @@ export const useDataStore = defineStore("data", () => {
     await write(col.sources.deleteOne(id));
   }
 
+  function prepareWeekendImport(source: Source): PendingImport {
+    const fromToday = todayOf();
+    const until = addMonths(fromToday, HORIZON_MONTHS);
+    const plan = planWeekends({
+      source,
+      existing: events.value,
+      tasks: tasks.value,
+      today: fromToday,
+      until,
+      now: nowIso(),
+    });
+    return { source, plan, summary: summarize(plan) };
+  }
+
   function prepareImport(source: Source, icsText: string): PendingImport {
     const from = todayOf();
     const until = addMonths(from, HORIZON_MONTHS);
@@ -477,6 +491,7 @@ export const useDataStore = defineStore("data", () => {
     deleteTask,
     saveSource,
     deleteSource,
+    prepareWeekendImport,
     prepareImport,
     fetchSource,
     applyImport,

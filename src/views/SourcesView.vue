@@ -156,7 +156,35 @@ async function onRefreshFile(e: Event) {
   }
 }
 
+async function addWeekends(existing?: Source) {
+  const source: Source =
+    existing?.type === "weekends"
+      ? existing
+      : (data.sources.find((s) => s.type === "weekends") ?? {
+          id: newId(),
+          name: "Weekends",
+          type: "weekends",
+          defaultCategory: "weekend",
+          kidIds: [],
+        });
+  busy.value = true;
+  const pendingImport = data.prepareWeekendImport(source);
+  const ok = await ui.run(async () => {
+    await data.applyImport(pendingImport);
+    return true;
+  });
+  busy.value = false;
+  if (!ok) return;
+  const s = pendingImport.summary;
+  ui.toast(
+    s.created
+      ? `Added ${s.created} weekend${s.created === 1 ? "" : "s"}`
+      : `Weekends already added (${s.unchanged} unchanged)`,
+  );
+}
+
 function edit(src: Source) {
+  if (src.type === "weekends") return;
   mode.value = src.type;
   editingId.value = src.id;
   form.name = src.name;
@@ -193,7 +221,14 @@ function eventCount(src: Source) {
       <div v-if="!mode" class="row wrap" style="margin: 4px 0 8px">
         <button class="btn tonal" @click="resetForm('url')"><AppIcon name="link" :size="18" /> Add calendar URL</button>
         <button class="btn tonal" @click="resetForm('file')"><AppIcon name="upload" :size="18" /> Upload .ics file</button>
+        <button class="btn tonal" :disabled="data.readOnly || busy" @click="addWeekends()">
+          <AppIcon name="calendar" :size="18" /> Add weekends
+        </button>
       </div>
+      <p v-if="!mode" class="small muted" style="margin-top: 0">
+        Weekends are one event each, Saturday through Sunday, for the next {{ HORIZON_MONTHS }} months. Mark one Not relevant
+        when it overlaps a vacation.
+      </p>
 
       <form v-if="mode" class="card" @submit.prevent="mode === 'url' && !file ? submitUrl() : submitFile()">
         <h3 style="margin-bottom: 12px">
@@ -250,10 +285,11 @@ function eventCount(src: Source) {
     <div v-if="!sorted.length" class="card muted small">No calendars yet. Events are imported for the next {{ HORIZON_MONTHS }} months.</div>
     <div v-for="src in sorted" :key="src.id" class="card">
       <div class="row">
-        <AppIcon :name="src.type === 'url' ? 'link' : 'upload'" />
+        <AppIcon :name="src.type === 'url' ? 'link' : src.type === 'weekends' ? 'calendar' : 'upload'" />
         <div style="flex: 1; min-width: 0">
           <strong>{{ src.name }}</strong>
           <div v-if="src.url" class="small muted url">{{ src.url }}</div>
+          <div v-else-if="src.type === 'weekends'" class="small muted">Saturday–Sunday, next {{ HORIZON_MONTHS }} months</div>
           <div class="small muted">
             {{ eventCount(src) }} events ·
             {{ src.lastImportedAt ? `imported ${new Date(src.lastImportedAt).toLocaleString()}` : "never imported" }}
@@ -265,11 +301,14 @@ function eventCount(src: Source) {
         <button v-if="src.type === 'url'" class="btn tonal" :disabled="data.readOnly || busy" @click="refresh(src)">
           <AppIcon name="refresh" :size="18" /> Refresh
         </button>
-        <button class="btn outline" :disabled="data.readOnly || busy" @click="uploadFor(src)">
+        <button v-if="src.type === 'weekends'" class="btn tonal" :disabled="data.readOnly || busy" @click="addWeekends(src)">
+          <AppIcon name="refresh" :size="18" /> Refresh
+        </button>
+        <button v-if="src.type !== 'weekends'" class="btn outline" :disabled="data.readOnly || busy" @click="uploadFor(src)">
           <AppIcon name="upload" :size="18" /> Upload {{ src.type === "url" ? "file" : "new version" }}
         </button>
         <span class="spacer" />
-        <button class="icon-btn" title="Edit" :disabled="data.readOnly" @click="edit(src)"><AppIcon name="edit" /></button>
+        <button v-if="src.type !== 'weekends'" class="icon-btn" title="Edit" :disabled="data.readOnly" @click="edit(src)"><AppIcon name="edit" /></button>
         <button class="icon-btn" title="Remove" :disabled="data.readOnly" @click="remove(src)"><AppIcon name="delete" /></button>
       </div>
     </div>

@@ -26,6 +26,7 @@ export const CATEGORIES: { key: Category; label: string }[] = [
   { key: "school", label: "School" },
   { key: "vacation", label: "Vacation / holiday" },
   { key: "birthday", label: "Birthday" },
+  { key: "weekend", label: "Weekend" },
   { key: "other", label: "Other" },
 ];
 
@@ -125,6 +126,8 @@ export function defaultReminderTiers(): Record<Category, ReminderTierConfig> {
     vacation: { ...standard, tiers: [...standard.tiers] },
     other: { ...standard, tiers: [...standard.tiers] },
     birthday: { tiers: [21, 7], repeatEveryDays: 2 },
+    // Close-in only: a weekend every week would flood the inbox on the holiday ladder.
+    weekend: { tiers: [14, 3], repeatEveryDays: 0 },
   };
 }
 

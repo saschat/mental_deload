@@ -61,7 +61,9 @@ async function removeKid(kid: Kid) {
 // Settings draft
 //
 const draft = reactive<Settings>(JSON.parse(JSON.stringify(data.settings)));
-const tierText = reactive<Record<Category, string>>({ school: "", vacation: "", birthday: "", other: "" });
+const tierText = reactive<Record<Category, string>>(
+  Object.fromEntries(CATEGORIES.map((c) => [c.key, ""])) as Record<Category, string>,
+);
 const baseline = ref("");
 const serialize = () => JSON.stringify({ draft, tierText });
 const dirty = computed(() => serialize() !== baseline.value);

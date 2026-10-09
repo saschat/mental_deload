@@ -157,8 +157,10 @@ async function remove() {
         </div>
         <div v-else class="muted">No more reminder tiers before the event.</div>
         <div class="muted" style="margin-top: 4px">
-          {{ CATEGORY_LABELS[ev.category] }} tiers: {{ data.settings.reminderTiers[ev.category].tiers.join(", ") }} days before,
-          then every {{ data.settings.reminderTiers[ev.category].repeatEveryDays }} days.
+          {{ CATEGORY_LABELS[ev.category] }} tiers: {{ data.settings.reminderTiers[ev.category].tiers.join(", ") }} days before<template
+            v-if="data.settings.reminderTiers[ev.category].repeatEveryDays"
+            >, then every {{ data.settings.reminderTiers[ev.category].repeatEveryDays }} days</template
+          >.
         </div>
       </template>
       <div v-else class="muted">Decided — no decision reminders.</div>

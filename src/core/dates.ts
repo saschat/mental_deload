@@ -1,5 +1,8 @@
 import type { ISODate } from "./types";
 
+/** How far ahead ICS recurrences and generated weekends are expanded. */
+export const HORIZON_MONTHS = 18;
+
 const DAY_MS = 86_400_000;
 
 function pad(n: number): string {
@@ -23,6 +26,11 @@ function fromUtc(ms: number): ISODate {
 
 export function today(now: Date = new Date()): ISODate {
   return toISODate(now);
+}
+
+/** 0 = Sunday … 6 = Saturday. Uses the same UTC-midnight arithmetic as addDays. */
+export function weekday(date: ISODate): number {
+  return new Date(utc(date)).getUTCDay();
 }
 
 export function addDays(date: ISODate, days: number): ISODate {
