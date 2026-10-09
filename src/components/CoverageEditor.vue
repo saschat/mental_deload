@@ -64,21 +64,36 @@ async function setStatus(seg: Segment, ids: string[], status: StatusKey) {
   busy.value = false;
 }
 
+function commitSplit(seg: Segment, date: string) {
+  if (!(date > seg.start && date <= seg.end)) {
+    ui.toast(`Pick a date after ${formatDate(seg.start)} and up to ${formatDate(seg.end)}.`, "error");
+    return;
+  }
+  const next = splitSegment(segments.value, seg.id, date);
+  splitting.value = null;
+  if (same.value && kids.value.length > 1) same.value = isUniform(next, kidIds.value);
+  return ui.run(() => data.saveEvent({ ...props.event, segments: next }));
+}
+
 function startSplit(seg: Segment) {
+  const days = rangeLength(seg.start, seg.end);
+  if (days < 2) return;
+  // A two-day range has only one legal split: the second day. A date input
+  // whose min and max are that same day is easy to miss and some pickers
+  // clear the value, so apply it immediately.
+  if (days === 2) {
+    void commitSplit(seg, seg.end);
+    return;
+  }
   splitting.value = seg.id;
-  const mid = Math.max(1, Math.min(7, Math.floor(rangeLength(seg.start, seg.end) / 2)));
+  const mid = Math.max(1, Math.min(days - 1, 7, Math.floor(days / 2)));
   splitDate.value = addDays(seg.start, mid);
 }
 
 async function doSplit(seg: Segment) {
-  if (!(splitDate.value > seg.start && splitDate.value <= seg.end)) {
-    ui.toast(`Pick a date after ${formatDate(seg.start)} and up to ${formatDate(seg.end)}.`, "error");
-    return;
-  }
-  const next = splitSegment(segments.value, seg.id, splitDate.value);
-  splitting.value = null;
-  if (same.value && kids.value.length > 1) same.value = isUniform(next, kidIds.value);
-  await ui.run(() => data.saveEvent({ ...props.event, segments: next }));
+  let date = splitDate.value;
+  if (!(date > seg.start && date <= seg.end) && addDays(seg.start, 1) === seg.end) date = seg.end;
+  await commitSplit(seg, date);
 }
 
 async function remove(seg: Segment) {
@@ -133,12 +148,18 @@ async function rename(seg: Segment, raw: string) {
 
     <fieldset :disabled="data.readOnly || busy">
       <div v-for="(seg, i) in segments" :key="seg.id" class="seg card flat">
-        <div class="row">
+        <div class="row wrap">
           <strong v-if="heading(seg)">{{ heading(seg) }}</strong>
           <strong v-else-if="segments.length > 1">Part {{ i + 1 }}</strong>
           <span class="small muted">{{ formatRange(seg.start, seg.end) }} · {{ rangeLength(seg.start, seg.end) }} day{{ rangeLength(seg.start, seg.end) === 1 ? "" : "s" }}</span>
           <span class="spacer" />
-          <button v-if="seg.start < seg.end" class="icon-btn" title="Split segment" @click="startSplit(seg)">
+          <button
+            v-if="seg.start < seg.end"
+            type="button"
+            class="icon-btn"
+            :title="rangeLength(seg.start, seg.end) === 2 ? 'Split into two days' : 'Split segment'"
+            @click="startSplit(seg)"
+          >
             <AppIcon name="split" :size="18" />
           </button>
           <button v-if="segments.length > 1" class="icon-btn" title="Merge into neighbour" @click="remove(seg)">
@@ -148,8 +169,8 @@ async function rename(seg: Segment, raw: string) {
         <div v-if="splitting === seg.id" class="row wrap split">
           <span class="small">New part starts on</span>
           <input v-model="splitDate" type="date" class="date-input" :min="addDays(seg.start, 1)" :max="seg.end" />
-          <button class="btn tonal" @click="doSplit(seg)">Split</button>
-          <button class="btn text" @click="splitting = null">Cancel</button>
+          <button type="button" class="btn tonal" @click="doSplit(seg)">Split</button>
+          <button type="button" class="btn text" @click="splitting = null">Cancel</button>
         </div>
         <label class="name-field">
           <span class="small muted">Name</span>

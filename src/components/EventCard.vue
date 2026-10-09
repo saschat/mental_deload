@@ -13,9 +13,6 @@ const emit = defineEmits<{ setStatus: [FamilyEvent] }>();
 const data = useDataStore();
 
 const bar = computed(() => URGENCY_COLORS[urgency(props.event, data.today)]);
-const sourceName = computed(() =>
-  props.event.sourceId ? (data.sources.find((s) => s.id === props.event.sourceId)?.name ?? "Calendar") : "Manual",
-);
 const kids = computed(() => data.relevantKids(props.event));
 
 function kidStatus(kidId: string) {
@@ -39,7 +36,6 @@ function partial(kidId: string) {
         · <strong>{{ relativeDays(event.start, data.today) }}</strong>
       </div>
       <div class="row wrap tags">
-        <span class="tag">{{ sourceName }}</span>
         <span class="tag">{{ CATEGORY_LABELS[event.category] }}</span>
         <span v-if="event.upstreamFlag === 'changed'" class="tag warn">Changed upstream</span>
         <span v-if="event.upstreamFlag === 'removed'" class="tag danger">Removed upstream</span>

@@ -134,8 +134,10 @@ export function setSegmentStatus(
 
 /**
  * Split a segment so that `splitDate` starts a new segment. The new segment
- * copies the statuses of the original. Returns the input unchanged when the
- * date is not strictly inside the segment.
+ * copies statuses and any coverage name. The split date may be the segment's
+ * inclusive end, so a two-day range (Saturday–Sunday, or any other pair)
+ * becomes two single days. Returns the input unchanged when the date is not
+ * after the start or is past the end.
  */
 export function splitSegment(segments: Segment[], segmentId: string, splitDate: ISODate): Segment[] {
   const out: Segment[] = [];

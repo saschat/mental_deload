@@ -21,7 +21,6 @@ const data = useDataStore();
 const ui = useUiStore();
 
 const ev = computed(() => data.eventsById.get(route.params.id as string));
-const source = computed(() => (ev.value?.sourceId ? data.sources.find((s) => s.id === ev.value!.sourceId) : undefined));
 const tasks = computed(() => (ev.value ? (data.tasksByEvent.get(ev.value.id) ?? []) : []));
 const taskGroups = computed(() => {
   const event = ev.value;
@@ -99,7 +98,6 @@ async function remove() {
       <div class="row wrap" style="margin-top: 8px; gap: 6px">
         <span class="tag" :class="{ danger: undecided }">{{ countdown }}</span>
         <span class="tag">{{ CATEGORY_LABELS[ev.category] }}</span>
-        <span class="tag">{{ source ? source.name : "Manual" }}</span>
         <span v-if="!undecided" class="tag" style="background: #e3f4e5; color: var(--ok)">Decided</span>
       </div>
       <p v-if="ev.location" class="small muted" style="margin-bottom: 0">📍 {{ ev.location }}</p>

@@ -104,6 +104,18 @@ describe("segment editing", () => {
     expect(isUndecided(ev(out), kids)).toBe(false);
   });
 
+  it("splits a Saturday–Sunday event at Sunday into each day", () => {
+    const weekend: Segment[] = [
+      { id: "s", start: "2026-10-10", end: "2026-10-11", statuses: { a: "camp" }, name: "Home" },
+    ];
+    const out = splitSegment(weekend, "s", "2026-10-11");
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ start: "2026-10-10", end: "2026-10-10", statuses: { a: "camp" }, name: "Home" });
+    expect(out[1]).toMatchObject({ start: "2026-10-11", end: "2026-10-11", statuses: { a: "camp" }, name: "Home" });
+    expect(out[0].id).toBe("s");
+    expect(out[1].id).not.toBe("s");
+  });
+
   it("copies a coverage name onto both parts of a split", () => {
     const named = [{ ...base[0], name: "Circus" }];
     const out = splitSegment(named, "s", "2026-07-08");
