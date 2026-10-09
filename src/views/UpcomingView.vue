@@ -2,24 +2,31 @@
 import { computed, ref } from "vue";
 import KidAvatar from "@/components/KidAvatar.vue";
 import { formatRange, parseLocal } from "@/core/dates";
-import { hiddenBecauseNotRelevant, isUndecided, kidSegmentSummary, relevantKidIds } from "@/core/coverage";
-import { CATEGORY_LABELS, STATUS_LABELS, statusColor } from "@/core/defaults";
+import { kidSegmentSummary } from "@/core/coverage";
+import { CATEGORIES, CATEGORY_LABELS, statusColor, statusLabel } from "@/core/defaults";
 import { taskProgress } from "@/core/tasks";
-import type { FamilyEvent, StatusKey } from "@/core/types";
+import { matchesUpcomingFilter } from "@/core/upcoming";
+import type { Category, FamilyEvent, StatusKey } from "@/core/types";
 import { timeLabel } from "@/lib/eventMeta";
 import { useDataStore } from "@/stores/data";
 
 const data = useDataStore();
 const filter = ref<"upcoming" | "all" | "undecided" | string>("upcoming");
+const categories = ref<Category[]>([]);
+
+function toggleCategory(key: Category) {
+  categories.value = categories.value.includes(key)
+    ? categories.value.filter((c) => c !== key)
+    : [...categories.value, key];
+}
 
 const filtered = computed(() =>
-  data.upcomingEvents.filter((e) => {
-    if (filter.value === "upcoming") return !hiddenBecauseNotRelevant(e, data.kids);
-    if (filter.value === "all") return true;
-    if (filter.value === "undecided") return isUndecided(e, data.kids);
-    return relevantKidIds(e, data.kids).includes(filter.value);
-  }),
+  data.upcomingEvents.filter((e) =>
+    matchesUpcomingFilter(e, data.kids, { scope: filter.value, categories: categories.value }),
+  ),
 );
+
+const narrowed = computed(() => filter.value !== "upcoming" || categories.value.length > 0);
 
 const months = computed(() => {
   const groups: { key: string; label: string; events: FamilyEvent[] }[] = [];
@@ -44,7 +51,7 @@ function kidsFor(ev: FamilyEvent) {
 
 function pillText(ev: FamilyEvent, kidId: string): { text: string; status: StatusKey | null } {
   const parts = kidSegmentSummary(ev, kidId);
-  const shown = (p: (typeof parts)[number]) => p.name || (p.status ? STATUS_LABELS[p.status] : "");
+  const shown = (p: (typeof parts)[number]) => p.name || (p.status ? statusLabel(p.status) : "");
   if (parts.length === 1) {
     const p = parts[0];
     const base = shown(p);
@@ -76,10 +83,23 @@ function day(ev: FamilyEvent) {
       </button>
       <button class="chip" :class="{ selected: filter === 'undecided' }" @click="filter = 'undecided'">Undecided only</button>
     </div>
+    <div class="chips" aria-label="Category">
+      <button
+        v-for="c in CATEGORIES"
+        :key="c.key"
+        type="button"
+        class="chip"
+        :class="{ selected: categories.includes(c.key) }"
+        :aria-pressed="categories.includes(c.key)"
+        @click="toggleCategory(c.key)"
+      >
+        {{ c.label }}
+      </button>
+    </div>
 
     <div v-if="!months.length" class="empty">
       <div class="big">🗓️</div>
-      <p>No upcoming events{{ filter !== "upcoming" ? " for this filter" : "" }}.</p>
+      <p>No upcoming events{{ narrowed ? " for this filter" : "" }}.</p>
     </div>
 
     <section v-for="m in months" :key="m.key">

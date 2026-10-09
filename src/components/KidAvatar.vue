@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Kid, StatusKey } from "@/core/types";
-import { STATUS_LABELS, statusColor } from "@/core/defaults";
+import { statusColor, statusLabel } from "@/core/defaults";
 import { useDataStore } from "@/stores/data";
 
 const props = withDefaults(
@@ -20,7 +20,7 @@ const showStatus = computed(() => props.status !== undefined);
 const isImage = computed(() => !!props.kid.avatar && /^(data:|https?:)/.test(props.kid.avatar));
 const label = computed(() => {
   if (!showStatus.value) return props.kid.name;
-  return `${props.kid.name}: ${props.status ? STATUS_LABELS[props.status] : "undecided"}`;
+  return `${props.kid.name}: ${props.status ? statusLabel(props.status) : "undecided"}`;
 });
 const ring = computed(() => (props.status ? statusColor(data.settings, props.status) : "transparent"));
 </script>

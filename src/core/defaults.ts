@@ -8,19 +8,33 @@ import type {
   TemplateNode,
 } from "./types";
 
+/** Statuses offered in the picker and for new templates. */
 export const STATUSES: StatusDef[] = [
   { key: "childcare", label: "Child care", color: "#3b82f6" },
   { key: "grandparents", label: "Grandparents", color: "#8b5cf6" },
   { key: "vacation", label: "Family vacation", color: "#10b981" },
-  { key: "parent_off", label: "Parent off", color: "#14b8a6" },
   { key: "camp", label: "Holiday camp", color: "#f59e0b" },
   { key: "attending", label: "Attending", color: "#ec4899" },
+  { key: "guests", label: "Guests", color: "#6366f1" },
+  { key: "activity", label: "Activity", color: "#0891b2" },
   { key: "not_relevant", label: "Not relevant", color: "#9ca3af" },
 ];
 
-export const STATUS_LABELS = Object.fromEntries(
-  STATUSES.map((s) => [s.key, s.label]),
-) as Record<StatusKey, string>;
+/** Saved on older segments. Display only — not in the picker. */
+const LEGACY_STATUSES: StatusDef[] = [{ key: "parent_off", label: "Parent off", color: "#14b8a6" }];
+
+const STATUS_DEFS = [...STATUSES, ...LEGACY_STATUSES];
+
+const statusLabels: Record<string, string> = Object.fromEntries(STATUS_DEFS.map((s) => [s.key, s.label]));
+/** Older docs may have stored the camelCase spelling. */
+statusLabels.parentOff = statusLabels.parent_off;
+
+export const STATUS_LABELS = statusLabels as Record<StatusKey, string>;
+
+export function statusLabel(key: StatusKey | string | null | undefined): string {
+  if (!key) return "";
+  return statusLabels[key] ?? "";
+}
 
 export const CATEGORIES: { key: Category; label: string }[] = [
   { key: "school", label: "School" },
@@ -99,10 +113,20 @@ export function defaultTemplates(): TaskTemplate[] {
       ],
     },
     {
-      id: "tpl-parent-off",
-      status: "parent_off",
+      id: "tpl-guests",
+      status: "guests",
       category: null,
-      nodes: [node("Request time off at work", -60), node("Plan activities", -7)],
+      nodes: [
+        node("Invite / confirm guests", -14),
+        node("Plan meals", -7),
+        node("Prepare the house", -2),
+      ],
+    },
+    {
+      id: "tpl-activity",
+      status: "activity",
+      category: null,
+      nodes: [node("Pick an activity", -14), node("Book it", -7), node("Pack for it", -2)],
     },
     {
       id: "tpl-attending-birthday",
@@ -157,6 +181,13 @@ export function normalizeSettings(s: Partial<Settings> | null | undefined): Sett
   };
 }
 
-export function statusColor(settings: Settings | null | undefined, key: StatusKey): string {
-  return settings?.statusColors?.[key] ?? STATUSES.find((s) => s.key === key)!.color;
+function canonicalStatusKey(key: string): StatusKey {
+  if (key === "parentOff") return "parent_off";
+  return key as StatusKey;
+}
+
+export function statusColor(settings: Settings | null | undefined, key: StatusKey | string): string {
+  const canonical = canonicalStatusKey(key);
+  const custom = settings?.statusColors?.[canonical] ?? settings?.statusColors?.[key as StatusKey];
+  return custom ?? STATUS_DEFS.find((s) => s.key === canonical)?.color ?? "#9ca3af";
 }

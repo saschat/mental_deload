@@ -1,6 +1,6 @@
 import { coverageDisplayName } from "./coverage";
 import { addDays, diffDays, maxDate } from "./dates";
-import { newId, STATUS_LABELS } from "./defaults";
+import { newId, statusLabel } from "./defaults";
 import type {
   Category,
   FamilyEvent,
@@ -201,7 +201,7 @@ export function taskCoverageName(
   const seg = event?.segments?.find((s) => s.id === task.segmentId);
   const typed = seg?.name?.trim();
   if (typed) return typed;
-  if (task.status && task.status !== "not_relevant") return STATUS_LABELS[task.status];
+  if (task.status && task.status !== "not_relevant") return statusLabel(task.status);
   return seg ? coverageDisplayName(seg) : "";
 }
 

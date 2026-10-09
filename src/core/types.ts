@@ -6,6 +6,10 @@
 
 export type ISODate = string;
 
+/**
+ * Coverage status. `parent_off` is legacy: saved segments still display it,
+ * but it is not offered in the picker or in new templates.
+ */
 export type StatusKey =
   | "childcare"
   | "grandparents"
@@ -13,6 +17,8 @@ export type StatusKey =
   | "parent_off"
   | "camp"
   | "attending"
+  | "guests"
+  | "activity"
   | "not_relevant";
 
 export type Category = "school" | "vacation" | "birthday" | "weekend" | "other";

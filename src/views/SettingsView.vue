@@ -4,7 +4,7 @@ import { bzr } from "@/bazaar";
 import AppIcon from "@/components/AppIcon.vue";
 import KidAvatar from "@/components/KidAvatar.vue";
 import TemplateNodes from "@/components/TemplateNodes.vue";
-import { CATEGORIES, CATEGORY_LABELS, KID_COLORS, STATUSES, STATUS_LABELS, defaultSettings, newId, statusColor } from "@/core/defaults";
+import { CATEGORIES, CATEGORY_LABELS, KID_COLORS, STATUSES, defaultSettings, newId, statusColor, statusLabel } from "@/core/defaults";
 import { buildRemindersIcs } from "@/core/icsExport";
 import type { Category, Kid, Settings, StatusKey } from "@/core/types";
 import { downloadText, imageToDataUrl } from "@/lib/download";
@@ -114,11 +114,14 @@ function removeTemplate(id: string) {
   draft.templates = draft.templates.filter((t) => t.id !== id);
 }
 
+function statusSortIndex(key: StatusKey): number {
+  const i = STATUSES.findIndex((s) => s.key === key);
+  return i < 0 ? STATUSES.length : i;
+}
+
 const sortedTemplates = computed(() =>
   [...draft.templates].sort(
-    (a, b) =>
-      STATUSES.findIndex((s) => s.key === a.status) - STATUSES.findIndex((s) => s.key === b.status) ||
-      (a.category ? 0 : 1) - (b.category ? 0 : 1),
+    (a, b) => statusSortIndex(a.status) - statusSortIndex(b.status) || (a.category ? 0 : 1) - (b.category ? 0 : 1),
   ),
 );
 
@@ -293,7 +296,7 @@ async function logout() {
         <div v-for="t in sortedTemplates" :key="t.id" class="tpl">
           <div class="row">
             <span class="dot" :style="{ background: statusColor(draft, t.status) }" />
-            <strong>{{ STATUS_LABELS[t.status] }}</strong>
+            <strong>{{ statusLabel(t.status) }}</strong>
             <span class="tag">{{ t.category ? CATEGORY_LABELS[t.category] : "Any category" }}</span>
             <span class="spacer" />
             <button class="icon-btn" title="Delete template" @click="removeTemplate(t.id)"><AppIcon name="delete" :size="18" /></button>

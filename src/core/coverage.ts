@@ -1,5 +1,5 @@
 import { addDays, diffDays, formatDate, maxDate, minDate, rangeLength } from "./dates";
-import { newId, STATUS_LABELS } from "./defaults";
+import { newId, statusLabel } from "./defaults";
 import type { FamilyEvent, ISODate, Kid, Segment, StatusKey } from "./types";
 
 /** Kids the event is relevant for. An empty list means "all kids". */
@@ -224,8 +224,8 @@ export function coverageDisplayName(segment: Pick<Segment, "name" | "statuses">)
   const typed = segment.name?.trim();
   if (typed) return typed;
   const values = namedStatuses(segment);
-  if (values.length === 1) return STATUS_LABELS[values[0]];
-  if (values.length > 1) return values.map((s) => STATUS_LABELS[s]).join(" / ");
+  if (values.length === 1) return statusLabel(values[0]);
+  if (values.length > 1) return values.map((s) => statusLabel(s)).join(" / ");
   return "";
 }
 

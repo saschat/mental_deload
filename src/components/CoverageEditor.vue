@@ -14,7 +14,7 @@ import {
   setSegmentStatus,
   splitSegment,
 } from "@/core/coverage";
-import { STATUS_LABELS, statusColor } from "@/core/defaults";
+import { statusColor, statusLabel } from "@/core/defaults";
 import type { FamilyEvent, Segment, StatusKey } from "@/core/types";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
@@ -107,7 +107,7 @@ function heading(seg: Segment) {
 
 function namePlaceholder(seg: Segment) {
   const st = sharedStatus(seg);
-  if (st) return STATUS_LABELS[st];
+  if (st) return statusLabel(st);
   return coverageDisplayName({ ...seg, name: undefined }) || "Coverage name";
 }
 
@@ -131,7 +131,7 @@ async function rename(seg: Segment, raw: string) {
             class="tl-seg"
             :class="{ empty: !seg.statuses?.[k.id] }"
             :style="{ width: width(seg), ...cellStyle(seg, k.id) }"
-            :title="`${formatRange(seg.start, seg.end)}: ${seg.name?.trim() || (seg.statuses?.[k.id] ? STATUS_LABELS[seg.statuses[k.id]] : 'undecided')}`"
+            :title="`${formatRange(seg.start, seg.end)}: ${seg.name?.trim() || (seg.statuses?.[k.id] ? statusLabel(seg.statuses[k.id]) : 'undecided')}`"
           />
         </div>
       </div>
