@@ -7,7 +7,7 @@ import type { Task } from "@/core/types";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
 
-const props = defineProps<{ tasks: Task[]; eventId: string }>();
+const props = defineProps<{ tasks: Task[]; eventId: string; segmentId?: string }>();
 const data = useDataStore();
 const ui = useUiStore();
 
@@ -54,7 +54,7 @@ async function add() {
     addingTo.value = undefined;
     return;
   }
-  await ui.run(() => data.addTask(props.eventId, title, addingTo.value ?? null, newDue.value || null));
+  await ui.run(() => data.addTask(props.eventId, title, addingTo.value ?? null, newDue.value || null, props.segmentId));
   newTitle.value = "";
   newDue.value = "";
 }

@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { defaultTemplates } from "./defaults";
-import { buildTaskTree, flattenTree, generateTasks, pickTemplate, planSegmentTasks, taskGroup } from "./tasks";
+import {
+  buildTaskTree,
+  flattenTree,
+  generateTasks,
+  pickTemplate,
+  planSegmentTasks,
+  taskActionLabel,
+  taskContextLabel,
+  taskCoverageName,
+  taskExportSummary,
+  taskGroup,
+} from "./tasks";
 import type { Segment, Task } from "./types";
 
 const templates = defaultTemplates();
@@ -81,6 +92,34 @@ describe("planSegmentTasks", () => {
   it("generates nothing for not relevant", () => {
     const seg = { ...segment, statuses: { a: "not_relevant" as const, b: "not_relevant" as const } };
     expect(planSegmentTasks({ ...base, segment: seg, tasks: [] }).create).toEqual([]);
+  });
+});
+
+describe("coverage display labels", () => {
+  const named = { ...segment, name: "Circus" };
+  const eventWith = (seg: Segment) => ({ segments: [seg] });
+
+  it("composes the action and the event context from the typed name", () => {
+    expect(taskCoverageName(eventWith(named), { segmentId: "s1", status: "camp" })).toBe("Circus");
+    expect(taskActionLabel("Pack", "Circus")).toBe("Pack for Circus");
+    expect(taskActionLabel("pack", "Ibiza")).toBe("pack for Ibiza");
+    expect(taskContextLabel("Holiday X", "Circus")).toBe("Holiday X - Circus");
+    expect(taskExportSummary("Holiday X", "Register & pay", "Circus")).toBe(
+      "Holiday X - Circus: Register & pay for Circus",
+    );
+  });
+
+  it("falls back to the status label when the coverage was not named", () => {
+    expect(taskCoverageName(eventWith(segment), { segmentId: "s1", status: "camp" })).toBe("Holiday camp");
+    expect(taskCoverageName(eventWith(segment), { segmentId: "s1" })).toBe("Holiday camp");
+    expect(taskActionLabel("Pack", "Holiday camp")).toBe("Pack for Holiday camp");
+    expect(taskContextLabel("Holiday X", "Holiday camp")).toBe("Holiday X - Holiday camp");
+    expect(taskActionLabel("Pack", "  ")).toBe("Pack");
+  });
+
+  it("keeps stored template titles free of the coverage name", () => {
+    const tasks = generateTasks({ event, segment: named, status: "camp", templates, today: "2026-01-01" });
+    expect(tasks.map((t) => t.title)).toEqual(["Find camp", "Register & pay", "Pack list"]);
   });
 });
 

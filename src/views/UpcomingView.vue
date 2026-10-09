@@ -42,12 +42,14 @@ function kidsFor(ev: FamilyEvent) {
 
 function pillText(ev: FamilyEvent, kidId: string): { text: string; status: StatusKey | null } {
   const parts = kidSegmentSummary(ev, kidId);
+  const shown = (p: (typeof parts)[number]) => p.name || (p.status ? STATUS_LABELS[p.status] : "");
   if (parts.length === 1) {
     const p = parts[0];
-    return { text: p.status ? STATUS_LABELS[p.status] + (p.label ? ` (${p.label})` : "") : "Undecided", status: p.status };
+    const base = shown(p);
+    return { text: base ? base + (p.label ? ` (${p.label})` : "") : "Undecided", status: p.status };
   }
   return {
-    text: parts.map((p) => `${p.label} ${p.status ? STATUS_LABELS[p.status] : "?"}`).join(" / "),
+    text: parts.map((p) => `${p.label} ${shown(p) || "?"}`).join(" / "),
     status: parts.find((p) => p.status)?.status ?? null,
   };
 }

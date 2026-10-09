@@ -46,6 +46,11 @@ export interface Segment {
   end: ISODate;
   /** Status per kid id. Missing kid = undecided for that kid. */
   statuses: Record<string, StatusKey>;
+  /**
+   * Optional name for this coverage block, shared by every kid on the segment
+   * ("Circus", "Ibiza"). Blank means the status label is used for display.
+   */
+  name?: string;
 }
 
 export interface UpstreamSnapshot {

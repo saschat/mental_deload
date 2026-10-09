@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   clipSegments,
+  coverageDisplayName,
   coverageFraction,
   fitSegments,
   isUndecided,
   kidSegmentSummary,
   relevantKidIds,
   removeSegment,
+  segmentHeading,
+  setSegmentName,
   setSegmentStatus,
   setStatusForAll,
   splitSegment,
@@ -73,6 +76,12 @@ describe("segment editing", () => {
     expect(isUndecided(ev(out), kids)).toBe(false);
   });
 
+  it("copies a coverage name onto both parts of a split", () => {
+    const named = [{ ...base[0], name: "Circus" }];
+    const out = splitSegment(named, "s", "2026-07-08");
+    expect(out.map((s) => s.name)).toEqual(["Circus", "Circus"]);
+  });
+
   it("refuses to split at the segment start or outside", () => {
     expect(splitSegment(base, "s", "2026-07-01")).toEqual(base);
     expect(splitSegment(base, "s", "2026-07-20")).toEqual(base);
@@ -120,9 +129,45 @@ describe("kidSegmentSummary", () => {
       { id: "2", start: "2026-07-08", end: "2026-07-14", statuses: { a: "camp" } },
     ];
     expect(kidSegmentSummary(ev(segs), "a")).toEqual([
-      { label: "Wk1", status: "grandparents" },
-      { label: "Wk2", status: "camp" },
+      { label: "Wk1", status: "grandparents", name: "" },
+      { label: "Wk2", status: "camp", name: "" },
     ]);
-    expect(kidSegmentSummary(ev([]), "a")).toEqual([{ label: "", status: null }]);
+    expect(kidSegmentSummary(ev([]), "a")).toEqual([{ label: "", status: null, name: "" }]);
+  });
+
+  it("keeps a typed coverage name on each part", () => {
+    const segs: Segment[] = [
+      { id: "1", start: "2026-07-01", end: "2026-07-07", statuses: { a: "camp" }, name: "Circus" },
+      { id: "2", start: "2026-07-08", end: "2026-07-14", statuses: { a: "vacation" }, name: "Ibiza" },
+    ];
+    expect(kidSegmentSummary(ev(segs), "a").map((p) => p.name)).toEqual(["Circus", "Ibiza"]);
+  });
+});
+
+describe("coverage names", () => {
+  it("uses the typed name and falls back to the status label", () => {
+    const named: Segment = { id: "1", start: "2026-07-01", end: "2026-07-14", statuses: { a: "camp" }, name: "  Circus " };
+    const blank: Segment = { id: "1", start: "2026-07-01", end: "2026-07-14", statuses: { a: "camp" } };
+    expect(coverageDisplayName(named)).toBe("Circus");
+    expect(coverageDisplayName(blank)).toBe("Holiday camp");
+    expect(coverageDisplayName({ ...blank, name: "   " })).toBe("Holiday camp");
+    expect(coverageDisplayName({ ...blank, statuses: { a: "camp", b: "vacation" } })).toBe("Holiday camp / Family vacation");
+  });
+
+  it("heads a split block with the name and week", () => {
+    const segs: Segment[] = [
+      { id: "1", start: "2026-07-01", end: "2026-07-07", statuses: { a: "camp" }, name: "Circus" },
+      { id: "2", start: "2026-07-08", end: "2026-07-14", statuses: { a: "vacation" } },
+    ];
+    const event = ev(segs);
+    expect(segmentHeading(event, segs[0])).toBe("Circus (Wk 1)");
+    expect(segmentHeading(event, segs[1])).toBe("Family vacation (Wk 2)");
+    expect(segmentHeading(ev([segs[0]]), segs[0])).toBe("Circus");
+  });
+
+  it("renames a segment without touching its status", () => {
+    const segs: Segment[] = [{ id: "s", start: "2026-07-01", end: "2026-07-14", statuses: { a: "camp" }, name: "Circus" }];
+    expect(setSegmentName(segs, "s", "Ibiza")[0]).toMatchObject({ name: "Ibiza", statuses: { a: "camp" } });
+    expect(setSegmentName(segs, "s", "  ")[0].name).toBeUndefined();
   });
 });

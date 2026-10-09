@@ -1,5 +1,6 @@
 import { addDays, diffDays } from "./dates";
 import { isUndecided } from "./coverage";
+import { taskContextLabel, taskCoverageName, taskExportSummary } from "./tasks";
 import type { FamilyEvent, ISODate, Kid, Settings, Task } from "./types";
 
 function escapeText(s: string): string {
@@ -93,16 +94,19 @@ export function buildRemindersIcs(opts: ExportOptions): string {
     if (t.done || !t.due || t.due < opts.today) continue;
     const ev = eventsById.get(t.eventId);
     if (!ev) continue;
+    const coverage = taskCoverageName(ev, t);
+    const summary = taskExportSummary(ev.title, t.title, coverage);
+    const context = taskContextLabel(ev.title, coverage);
     lines.push(
       "BEGIN:VEVENT",
       `UID:md-task-${t.id}@mental-deload`,
       `DTSTAMP:${stamp(now)}`,
       `DTSTART;VALUE=DATE:${icsDate(t.due)}`,
       `DTEND;VALUE=DATE:${icsDate(addDays(t.due, 1))}`,
-      `SUMMARY:${escapeText(`Task: ${t.title}`)}`,
-      `DESCRIPTION:${escapeText(`For "${ev.title}"`)}`,
+      `SUMMARY:${escapeText(summary)}`,
+      `DESCRIPTION:${escapeText(coverage ? context : `For "${ev.title}"`)}`,
       "TRANSP:TRANSPARENT",
-      ...alarm("PT9H", `Task due: ${t.title}`),
+      ...alarm("PT9H", summary),
       "END:VEVENT",
     );
   }

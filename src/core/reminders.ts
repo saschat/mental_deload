@@ -6,6 +6,7 @@
  */
 import { addDays, diffDays, formatRange, relativeDays } from "./dates";
 import { isUndecided } from "./coverage";
+import { taskActionLabel, taskContextLabel, taskCoverageName } from "./tasks";
 import type { FamilyEvent, ISODate, Kid, ReminderTierConfig, Settings, Task } from "./types";
 
 export type ReminderKind = "event" | "task-overdue" | "task-soon";
@@ -95,6 +96,9 @@ export function activeReminders(input: ReminderInput): Reminder[] {
     if (t.done || !t.due) continue;
     const ev = eventsById.get(t.eventId);
     if (!ev) continue;
+    const coverage = taskCoverageName(ev, t);
+    const action = taskActionLabel(t.title, coverage);
+    const context = taskContextLabel(ev.title, coverage);
     const d = diffDays(input.today, t.due);
     if (d < 0) {
       out.push({
@@ -102,8 +106,8 @@ export function activeReminders(input: ReminderInput): Reminder[] {
         kind: "task-overdue",
         eventId: ev.id,
         taskId: t.id,
-        title: `Overdue: ${t.title}`,
-        body: `For "${ev.title}", was due ${relativeDays(t.due, input.today)}.`,
+        title: `Overdue: ${action}`,
+        body: `For "${context}", was due ${relativeDays(t.due, input.today)}.`,
         daysUntil: d,
       });
     } else if (d <= input.settings.taskDueSoonDays) {
@@ -112,8 +116,8 @@ export function activeReminders(input: ReminderInput): Reminder[] {
         kind: "task-soon",
         eventId: ev.id,
         taskId: t.id,
-        title: `Due ${relativeDays(t.due, input.today)}: ${t.title}`,
-        body: `For "${ev.title}".`,
+        title: `Due ${relativeDays(t.due, input.today)}: ${action}`,
+        body: `For "${context}".`,
         daysUntil: d,
       });
     }

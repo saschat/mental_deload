@@ -337,10 +337,16 @@ export const useDataStore = defineStore("data", () => {
     else await write(col.tasks.insertOne(doc));
   }
 
-  async function addTask(eventId: string, title: string, parentId: string | null = null, due: string | null = null) {
+  async function addTask(
+    eventId: string,
+    title: string,
+    parentId: string | null = null,
+    due: string | null = null,
+    segmentId?: string,
+  ) {
     const siblings = tasks.value.filter((t) => t.eventId === eventId);
     const order = Math.max(-1, ...siblings.map((t) => t.order)) + 1;
-    await saveTask({ id: newId(), eventId, parentId, title, due, done: false, order });
+    await saveTask({ id: newId(), eventId, segmentId, parentId, title, due, done: false, order });
   }
 
   async function toggleTask(task: Task) {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatDate, relativeDays } from "@/core/dates";
-import { taskGroup, type TaskGroup } from "@/core/tasks";
+import { taskActionLabel, taskContextLabel, taskCoverageName, taskGroup, type TaskGroup } from "@/core/tasks";
 import type { Task } from "@/core/types";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
@@ -30,6 +30,19 @@ const groups = computed(() => {
 function parentTitle(t: Task) {
   return t.parentId ? tasksById.value.get(t.parentId)?.title : undefined;
 }
+
+function coverageOf(t: Task) {
+  return taskCoverageName(data.eventsById.get(t.eventId), t);
+}
+
+function actionLabel(t: Task) {
+  return taskActionLabel(t.title, coverageOf(t));
+}
+
+function contextLabel(t: Task) {
+  const title = data.eventsById.get(t.eventId)?.title;
+  return title ? taskContextLabel(title, coverageOf(t)) : "";
+}
 </script>
 
 <template>
@@ -42,12 +55,12 @@ function parentTitle(t: Task) {
       <h2 :class="{ 'danger-text': g.key === 'overdue' }">{{ g.label }} · {{ g.tasks.length }}</h2>
       <div class="card">
         <div v-for="t in g.tasks" :key="t.id" class="list-item">
-          <input type="checkbox" :checked="t.done" :disabled="data.readOnly" :aria-label="`Done: ${t.title}`" @change="ui.run(() => data.toggleTask(t), 'Task done')" />
+          <input type="checkbox" :checked="t.done" :disabled="data.readOnly" :aria-label="`Done: ${actionLabel(t)}`" @change="ui.run(() => data.toggleTask(t), 'Task done')" />
           <div style="flex: 1; min-width: 0">
             <div>
-              <span v-if="parentTitle(t)" class="muted small">{{ parentTitle(t) }} › </span>{{ t.title }}
+              <span v-if="parentTitle(t)" class="muted small">{{ parentTitle(t) }} › </span>{{ actionLabel(t) }}
             </div>
-            <RouterLink :to="`/event/${t.eventId}`" class="small">{{ data.eventsById.get(t.eventId)?.title }}</RouterLink>
+            <RouterLink v-if="contextLabel(t)" :to="`/event/${t.eventId}`" class="small">{{ contextLabel(t) }}</RouterLink>
           </div>
           <div v-if="t.due" class="small due" :class="{ 'danger-text': g.key === 'overdue' }">
             <div>{{ formatDate(t.due) }}</div>

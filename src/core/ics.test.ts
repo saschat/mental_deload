@@ -226,9 +226,14 @@ describe("buildRemindersIcs", () => {
       createdAt: "",
       updatedAt: "",
     };
-    const decided = { ...ev, id: "e2", segments: [{ id: "s", start: ev.start, end: ev.end, statuses: { a: "camp" as const } }] };
+    const decided = {
+      ...ev,
+      id: "e2",
+      title: "Holiday X",
+      segments: [{ id: "s", start: ev.start, end: ev.end, statuses: { a: "camp" as const }, name: "Circus" }],
+    };
     const tasks: Task[] = [
-      { id: "t1", eventId: "e2", title: "Pack", due: "2026-10-10", done: false, order: 0 },
+      { id: "t1", eventId: "e2", segmentId: "s", status: "camp", title: "Register & pay", due: "2026-10-10", done: false, order: 0 },
       { id: "t2", eventId: "e2", title: "Old", due: "2026-01-10", done: false, order: 1 },
     ];
     const ics = buildRemindersIcs({
@@ -246,6 +251,7 @@ describe("buildRemindersIcs", () => {
     expect(ics).toContain("TRIGGER:-P29DT15H");
     expect(ics).not.toContain("TRIGGER:-P179DT15H");
     expect(ics).toContain("UID:md-task-t1@mental-deload");
+    expect(ics).toContain("SUMMARY:Holiday X - Circus: Register & pay for Circus");
     expect(ics).not.toContain("md-task-t2");
 
     // Round-trips through our own parser.

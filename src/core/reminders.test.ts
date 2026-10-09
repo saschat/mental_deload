@@ -104,10 +104,10 @@ describe("activeReminders / dueReminders", () => {
       segments: [{ id: "s", start: addDays(today, 100), end: addDays(today, 100), statuses: { a: "camp", b: "camp" } }],
     });
     const tasks: Task[] = [
-      { id: "t1", eventId: "e", title: "Late", due: addDays(today, -1), done: false, order: 0 },
-      { id: "t2", eventId: "e", title: "Soon", due: addDays(today, 2), done: false, order: 1 },
-      { id: "t3", eventId: "e", title: "Later", due: addDays(today, 10), done: false, order: 2 },
-      { id: "t4", eventId: "e", title: "Done", due: addDays(today, -1), done: true, order: 3 },
+      { id: "t1", eventId: "e", segmentId: "s", status: "camp", title: "Late", due: addDays(today, -1), done: false, order: 0 },
+      { id: "t2", eventId: "e", segmentId: "s", status: "camp", title: "Soon", due: addDays(today, 2), done: false, order: 1 },
+      { id: "t3", eventId: "e", segmentId: "s", status: "camp", title: "Later", due: addDays(today, 10), done: false, order: 2 },
+      { id: "t4", eventId: "e", segmentId: "s", status: "camp", title: "Done", due: addDays(today, -1), done: true, order: 3 },
       { id: "t5", eventId: "gone", title: "Orphan", due: addDays(today, -1), done: false, order: 4 },
     ];
     const r = activeReminders({ events: [e], tasks, kids, settings, today });
@@ -115,6 +115,29 @@ describe("activeReminders / dueReminders", () => {
       ["t1", "task-overdue"],
       ["t2", "task-soon"],
     ]);
+    expect(r[0].title).toBe("Overdue: Late for Holiday camp");
+    expect(r[1].title).toBe("Due in 2 days: Soon for Holiday camp");
+  });
+
+  it("names a coverage in due and overdue lines", () => {
+    const e = event("e", addDays(today, 10), {
+      title: "Holiday X",
+      segments: [
+        {
+          id: "s",
+          name: "Ibiza",
+          start: addDays(today, 10),
+          end: addDays(today, 10),
+          statuses: { a: "vacation", b: "vacation" },
+        },
+      ],
+    });
+    const tasks: Task[] = [
+      { id: "t1", eventId: "e", segmentId: "s", status: "vacation", title: "pack", due: today, done: false, order: 0 },
+    ];
+    const r = activeReminders({ events: [e], tasks, kids, settings, today });
+    expect(r.map((x) => x.title)).toEqual(["Due today: pack for Ibiza"]);
+    expect(r[0].body).toBe('For "Holiday X - Ibiza".');
   });
 });
 

@@ -1,5 +1,5 @@
 import { addDays, diffDays, formatDate, maxDate, minDate, rangeLength } from "./dates";
-import { newId } from "./defaults";
+import { newId, STATUS_LABELS } from "./defaults";
 import type { FamilyEvent, ISODate, Kid, Segment, StatusKey } from "./types";
 
 /** Kids the event is relevant for. An empty list means "all kids". */
@@ -122,7 +122,13 @@ export function splitSegment(segments: Segment[], segmentId: string, splitDate: 
   for (const s of segments) {
     if (s.id === segmentId && splitDate > s.start && splitDate <= s.end) {
       out.push({ ...s, end: addDays(splitDate, -1) });
-      out.push({ id: newId(), start: splitDate, end: s.end, statuses: { ...s.statuses } });
+      out.push({
+        id: newId(),
+        start: splitDate,
+        end: s.end,
+        statuses: { ...s.statuses },
+        ...(s.name?.trim() ? { name: s.name.trim() } : {}),
+      });
     } else {
       out.push(s);
     }
@@ -176,8 +182,63 @@ export function isUniform(segments: Segment[], kidIds: string[]): boolean {
 }
 
 export interface SegmentLabel {
+  /** Week or date disambiguator; empty when the event is a single segment. */
   label: string;
   status: StatusKey | null;
+  /** User-typed coverage name, or empty when the segment was not named. */
+  name: string;
+}
+
+/** Statuses on a segment that can stand in for a missing coverage name. */
+function namedStatuses(segment: Pick<Segment, "statuses">): StatusKey[] {
+  return [...new Set(Object.values(segment.statuses ?? {}).filter((s): s is StatusKey => !!s && s !== "not_relevant"))];
+}
+
+/**
+ * Name of a coverage block: the text the user typed, or the status label when
+ * they left it blank. Mixed statuses without a name join their labels.
+ */
+export function coverageDisplayName(segment: Pick<Segment, "name" | "statuses">): string {
+  const typed = segment.name?.trim();
+  if (typed) return typed;
+  const values = namedStatuses(segment);
+  if (values.length === 1) return STATUS_LABELS[values[0]];
+  if (values.length > 1) return values.map((s) => STATUS_LABELS[s]).join(" / ");
+  return "";
+}
+
+/** Week/date labels parallel to the segments, empty when there is only one. */
+function partLabels(event: Pick<FamilyEvent, "start">, segs: Segment[]): string[] {
+  if (segs.length <= 1) return segs.map(() => "");
+  const weekLabels = segs.map((s) => `Wk${Math.floor(diffDays(event.start, s.start) / 7) + 1}`);
+  const uniqueWeeks = new Set(weekLabels).size === weekLabels.length;
+  return segs.map((s, i) => (uniqueWeeks ? weekLabels[i] : formatDate(s.start)));
+}
+
+/** Tree header for a coverage block, e.g. "Circus" or "Circus (Wk 1)". */
+export function segmentHeading(event: Pick<FamilyEvent, "start" | "segments">, segment: Segment): string {
+  const segs = [...(event.segments ?? [])].sort((a, b) => (a.start < b.start ? -1 : 1));
+  const name = coverageDisplayName(segment);
+  const idx = segs.findIndex((s) => s.id === segment.id);
+  let part = idx >= 0 ? partLabels(event, segs)[idx] : "";
+  const week = /^Wk(\d+)$/.exec(part);
+  if (week) part = `Wk ${week[1]}`;
+  if (!name) return part;
+  return part ? `${name} (${part})` : name;
+}
+
+/** Set or clear the shared coverage name. Does not touch statuses or tasks. */
+export function setSegmentName(segments: Segment[], segmentId: string, name: string): Segment[] {
+  const trimmed = name.trim();
+  return segments.map((s) => {
+    if (s.id !== segmentId) return s;
+    if (!trimmed) {
+      const copy = { ...s };
+      delete copy.name;
+      return copy;
+    }
+    return { ...s, name: trimmed };
+  });
 }
 
 /**
@@ -189,15 +250,15 @@ export function kidSegmentSummary(
   kidId: string,
 ): SegmentLabel[] {
   const segs = [...(event.segments ?? [])].sort((a, b) => (a.start < b.start ? -1 : 1));
+  const parts = partLabels(event, segs);
   if (segs.length <= 1) {
     const status = segs[0]?.statuses?.[kidId] ?? null;
     const partial = segs.length === 1 && status !== null && !isKidDecided(event, kidId);
-    return [{ label: partial ? "partly" : "", status }];
+    return [{ label: partial ? "partly" : "", status, name: segs[0]?.name?.trim() || "" }];
   }
-  const weekLabels = segs.map((s) => `Wk${Math.floor(diffDays(event.start, s.start) / 7) + 1}`);
-  const uniqueWeeks = new Set(weekLabels).size === weekLabels.length;
   return segs.map((s, i) => ({
-    label: uniqueWeeks ? weekLabels[i] : formatDate(s.start),
+    label: parts[i],
     status: s.statuses?.[kidId] ?? null,
+    name: s.name?.trim() || "",
   }));
 }

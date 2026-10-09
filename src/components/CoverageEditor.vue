@@ -4,7 +4,16 @@ import AppIcon from "./AppIcon.vue";
 import KidAvatar from "./KidAvatar.vue";
 import StatusChips from "./StatusChips.vue";
 import { addDays, formatDate, formatRange, rangeLength } from "@/core/dates";
-import { ensureSegments, isUniform, removeSegment, setSegmentStatus, splitSegment } from "@/core/coverage";
+import {
+  coverageDisplayName,
+  ensureSegments,
+  isUniform,
+  removeSegment,
+  segmentHeading,
+  setSegmentName,
+  setSegmentStatus,
+  splitSegment,
+} from "@/core/coverage";
 import { STATUS_LABELS, statusColor } from "@/core/defaults";
 import type { FamilyEvent, Segment, StatusKey } from "@/core/types";
 import { useDataStore } from "@/stores/data";
@@ -76,6 +85,23 @@ async function remove(seg: Segment) {
   const next = removeSegment(segments.value, seg.id);
   await ui.run(() => data.saveEvent({ ...props.event, segments: next }));
 }
+
+function heading(seg: Segment) {
+  return segmentHeading(props.event, seg);
+}
+
+function namePlaceholder(seg: Segment) {
+  const st = sharedStatus(seg);
+  if (st) return STATUS_LABELS[st];
+  return coverageDisplayName({ ...seg, name: undefined }) || "Coverage name";
+}
+
+/** Rename only. Status changes still go through task replacement; a new name does not. */
+async function rename(seg: Segment, raw: string) {
+  if (raw.trim() === (seg.name?.trim() ?? "")) return;
+  const next = setSegmentName(segments.value, seg.id, raw);
+  await ui.run(() => data.saveEvent({ ...props.event, segments: next }));
+}
 </script>
 
 <template>
@@ -90,7 +116,7 @@ async function remove(seg: Segment) {
             class="tl-seg"
             :class="{ empty: !seg.statuses?.[k.id] }"
             :style="{ width: width(seg), ...cellStyle(seg, k.id) }"
-            :title="`${formatRange(seg.start, seg.end)}: ${seg.statuses?.[k.id] ? STATUS_LABELS[seg.statuses[k.id]] : 'undecided'}`"
+            :title="`${formatRange(seg.start, seg.end)}: ${seg.name?.trim() || (seg.statuses?.[k.id] ? STATUS_LABELS[seg.statuses[k.id]] : 'undecided')}`"
           />
         </div>
       </div>
@@ -108,7 +134,8 @@ async function remove(seg: Segment) {
     <fieldset :disabled="data.readOnly || busy">
       <div v-for="(seg, i) in segments" :key="seg.id" class="seg card flat">
         <div class="row">
-          <strong v-if="segments.length > 1">Part {{ i + 1 }}</strong>
+          <strong v-if="heading(seg)">{{ heading(seg) }}</strong>
+          <strong v-else-if="segments.length > 1">Part {{ i + 1 }}</strong>
           <span class="small muted">{{ formatRange(seg.start, seg.end) }} · {{ rangeLength(seg.start, seg.end) }} day{{ rangeLength(seg.start, seg.end) === 1 ? "" : "s" }}</span>
           <span class="spacer" />
           <button v-if="seg.start < seg.end" class="icon-btn" title="Split segment" @click="startSplit(seg)">
@@ -124,6 +151,16 @@ async function remove(seg: Segment) {
           <button class="btn tonal" @click="doSplit(seg)">Split</button>
           <button class="btn text" @click="splitting = null">Cancel</button>
         </div>
+        <label class="name-field">
+          <span class="small muted">Name</span>
+          <input
+            class="input"
+            :value="seg.name ?? ''"
+            :placeholder="namePlaceholder(seg)"
+            aria-label="Coverage name"
+            @change="rename(seg, ($event.target as HTMLInputElement).value)"
+          />
+        </label>
         <template v-if="same || kids.length < 2">
           <StatusChips :model-value="sharedStatus(seg)" @update:model-value="(s) => setStatus(seg, kidIds, s)" />
         </template>
@@ -173,6 +210,15 @@ async function remove(seg: Segment) {
 }
 .split {
   margin: 6px 0;
+}
+.name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 4px;
+}
+.name-field .input {
+  padding: 8px 10px;
 }
 .per-kid {
   margin-top: 4px;

@@ -1,5 +1,6 @@
+import { coverageDisplayName } from "./coverage";
 import { addDays, diffDays, maxDate } from "./dates";
-import { newId } from "./defaults";
+import { newId, STATUS_LABELS } from "./defaults";
 import type {
   Category,
   FamilyEvent,
@@ -188,6 +189,43 @@ export function taskProgress(tasks: Task[]): { done: number; total: number } {
 }
 
 export type TaskGroup = "overdue" | "week" | "later" | "nodate";
+
+/**
+ * Coverage name for a task: the segment's typed name, otherwise that task's
+ * status label (so a blank name still reads "Holiday camp", never nothing).
+ */
+export function taskCoverageName(
+  event: Pick<FamilyEvent, "segments"> | undefined,
+  task: Pick<Task, "segmentId" | "status">,
+): string {
+  const seg = event?.segments?.find((s) => s.id === task.segmentId);
+  const typed = seg?.name?.trim();
+  if (typed) return typed;
+  if (task.status && task.status !== "not_relevant") return STATUS_LABELS[task.status];
+  return seg ? coverageDisplayName(seg) : "";
+}
+
+/** Display-only action, e.g. "Pack for Ibiza". Not stored on the task. */
+export function taskActionLabel(title: string, coverageName: string): string {
+  const name = coverageName.trim();
+  return name ? `${title} for ${name}` : title;
+}
+
+/** Display-only context outside the event, e.g. "Holiday X - Circus". */
+export function taskContextLabel(eventTitle: string, coverageName: string): string {
+  const name = coverageName.trim();
+  return name ? `${eventTitle} - ${name}` : eventTitle;
+}
+
+/**
+ * Calendar/reminder line for a task shown away from its event.
+ * With a coverage name: "Holiday X - Circus: Pack for Circus".
+ */
+export function taskExportSummary(eventTitle: string, taskTitle: string, coverageName: string): string {
+  const action = taskActionLabel(taskTitle, coverageName);
+  const context = taskContextLabel(eventTitle, coverageName);
+  return coverageName.trim() ? `${context}: ${action}` : `Task: ${taskTitle}`;
+}
 
 export function taskGroup(task: Pick<Task, "due">, today: ISODate): TaskGroup {
   if (!task.due) return "nodate";

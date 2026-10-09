@@ -5,11 +5,12 @@ import AppIcon from "@/components/AppIcon.vue";
 import CoverageEditor from "@/components/CoverageEditor.vue";
 import TaskTree from "@/components/TaskTree.vue";
 import { diffDays, formatDate, formatRange, relativeDays } from "@/core/dates";
-import { isUndecided } from "@/core/coverage";
+import { isUndecided, segmentHeading } from "@/core/coverage";
 import { CATEGORY_LABELS } from "@/core/defaults";
 import { acceptUpstream, ignoreUpstream } from "@/core/importDiff";
 import { reminderSchedule } from "@/core/reminders";
-import { taskProgress } from "@/core/tasks";
+import { taskProgress, withDescendants } from "@/core/tasks";
+import type { Task } from "@/core/types";
 import { timeLabel } from "@/lib/eventMeta";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
@@ -22,6 +23,26 @@ const ui = useUiStore();
 const ev = computed(() => data.eventsById.get(route.params.id as string));
 const source = computed(() => (ev.value?.sourceId ? data.sources.find((s) => s.id === ev.value!.sourceId) : undefined));
 const tasks = computed(() => (ev.value ? (data.tasksByEvent.get(ev.value.id) ?? []) : []));
+const taskGroups = computed(() => {
+  const event = ev.value;
+  if (!event) return [];
+  const all = tasks.value;
+  const segs = [...(event.segments ?? [])].sort((a, b) => (a.start < b.start ? -1 : 1));
+  const claimed = new Set<string>();
+  const groups: { key: string; heading: string; segmentId?: string; tasks: Task[] }[] = [];
+  for (const seg of segs) {
+    const group = withDescendants(
+      all.filter((t) => t.segmentId === seg.id),
+      all,
+    );
+    if (!group.length) continue;
+    for (const t of group) claimed.add(t.id);
+    groups.push({ key: seg.id, heading: segmentHeading(event, seg), segmentId: seg.id, tasks: group });
+  }
+  const loose = all.filter((t) => !claimed.has(t.id));
+  if (loose.length || !groups.length) groups.push({ key: "loose", heading: "", tasks: loose });
+  return groups;
+});
 const progress = computed(() => taskProgress(tasks.value));
 const undecided = computed(() => (ev.value ? isUndecided(ev.value, data.kids) : false));
 const schedule = computed(() => {
@@ -121,7 +142,10 @@ async function remove() {
 
     <h2>Tasks <template v-if="progress.total">· {{ progress.done }}/{{ progress.total }}</template></h2>
     <div class="card">
-      <TaskTree :tasks="tasks" :event-id="ev.id" />
+      <template v-for="g in taskGroups" :key="g.key">
+        <h3 v-if="g.heading" class="coverage-head">{{ g.heading }}</h3>
+        <TaskTree :tasks="g.tasks" :event-id="ev.id" :segment-id="g.segmentId" />
+      </template>
     </div>
 
     <h2>Reminders</h2>
@@ -155,5 +179,12 @@ async function remove() {
 }
 .upstream {
   align-items: flex-start;
+}
+.coverage-head {
+  font-size: 15px;
+  margin: 14px 0 0;
+}
+.coverage-head:first-child {
+  margin-top: 0;
 }
 </style>
