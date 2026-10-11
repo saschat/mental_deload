@@ -7,7 +7,7 @@ import { useWeatherStore } from "@/stores/weather";
 
 const props = defineProps<{
   event: Pick<FamilyEvent, "category" | "start" | "end">;
-  /** Night low is only for the event page. Lists stay on the compact line. */
+  /** Event page shows daytime high and nighttime low. Lists stay on the daytime high. */
   showNight?: boolean;
 }>();
 const data = useDataStore();
@@ -23,15 +23,15 @@ const line = computed(() => {
 <template>
   <div v-if="line" class="weekend-weather" data-testid="weekend-weather">
     <span v-if="line.source === 'forecast'" class="live" role="img" aria-label="forecast" title="forecast" />
-    <span>{{ line.temp }}</span>
+    <span v-if="showNight">{{ line.temp }} / {{ line.night }}</span>
+    <span v-else>{{ line.temp }}</span>
     <span class="rain">
-      <svg class="drop" viewBox="0 0 24 24" width="14" height="14" role="img" aria-label="rain">
+      <svg class="drop" viewBox="0 0 24 24" width="12.6" height="12.6" role="img" aria-label="rain">
         <title>rain</title>
         <path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2C20 10.48 17.33 6.55 12 2z" />
       </svg>
       <span>{{ line.rain }}</span>
     </span>
-    <span v-if="showNight">night {{ line.night }}</span>
   </div>
 </template>
 
@@ -49,7 +49,7 @@ const line = computed(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ok);
+  background: #4caf50;
   flex: none;
 }
 .rain {
@@ -60,6 +60,6 @@ const line = computed(() => {
 .drop {
   display: block;
   flex: none;
-  fill: currentColor;
+  fill: #2196f3;
 }
 </style>
