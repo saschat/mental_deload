@@ -9,9 +9,11 @@ import BottomSheet from "@/components/BottomSheet.vue";
 import { checkRemindersNow, notificationPermission, registerPeriodicSync } from "@/lib/notify";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
+import { useWeatherStore } from "@/stores/weather";
 
 const data = useDataStore();
 const ui = useUiStore();
+const weather = useWeatherStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -52,6 +54,7 @@ function cleanLoginParams() {
 
 async function boot() {
   cleanLoginParams();
+  weather.ensure();
   await data.loadCache();
   await data.start();
   await checkReminders();
@@ -61,6 +64,7 @@ async function boot() {
 function onVisibility() {
   if (document.visibilityState !== "visible" || !loggedIn.value) return;
   data.refreshToday();
+  weather.ensure();
   if (!data.live) data.start().then(checkReminders);
   else checkReminders();
 }

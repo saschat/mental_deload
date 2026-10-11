@@ -19,6 +19,8 @@ export interface Snapshot {
 export const SNAPSHOT_KEY = "snapshot";
 export const SENT_KEY = "sentReminders";
 export const LAST_CHECK_KEY = "lastReminderCheck";
+export const WEATHER_FORECAST_KEY = "weatherForecast";
+export const WEATHER_CLIMATE_KEY = "weatherClimate";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 

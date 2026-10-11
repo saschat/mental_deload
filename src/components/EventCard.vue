@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import KidAvatar from "./KidAvatar.vue";
+import WeekendWeather from "./WeekendWeather.vue";
 import { formatRange, relativeDays } from "@/core/dates";
 import { isKidDecided } from "@/core/coverage";
 import { CATEGORY_LABELS } from "@/core/defaults";
@@ -35,6 +36,7 @@ function partial(kidId: string) {
         <template v-if="timeLabel(event)"> · {{ timeLabel(event) }}</template>
         · <strong>{{ relativeDays(event.start, data.today) }}</strong>
       </div>
+      <WeekendWeather v-if="event.category === 'weekend'" :event="event" />
       <div class="row wrap tags">
         <span class="tag">{{ CATEGORY_LABELS[event.category] }}</span>
         <span v-if="event.upstreamFlag === 'changed'" class="tag warn">Changed upstream</span>

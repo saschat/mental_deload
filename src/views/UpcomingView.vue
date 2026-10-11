@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import KidAvatar from "@/components/KidAvatar.vue";
+import WeekendWeather from "@/components/WeekendWeather.vue";
 import { formatRange, parseLocal } from "@/core/dates";
 import { kidSegmentSummary } from "@/core/coverage";
 import { CATEGORY_LABELS, statusColor, statusLabel } from "@/core/defaults";
@@ -94,6 +95,7 @@ function day(ev: FamilyEvent) {
             {{ formatRange(ev.start, ev.end) }}<template v-if="timeLabel(ev)"> · {{ timeLabel(ev) }}</template> ·
             {{ CATEGORY_LABELS[ev.category] }}
           </div>
+          <WeekendWeather v-if="ev.category === 'weekend'" :event="ev" />
           <div class="pills">
             <span v-for="k in kidsFor(ev)" :key="k.id" class="pill" :class="{ undecided: !pillText(ev, k.id).status }">
               <KidAvatar :kid="k" :size="20" />
