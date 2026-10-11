@@ -79,9 +79,12 @@ export interface WeekendWeather {
 }
 
 export interface WeekendWeatherText {
+  /** Daytime high, the higher high of the two days. */
   temp: string;
+  /** Rain probability without a word, for the drop icon to sit beside. */
   rain: string;
-  snow: string | null;
+  /** Nighttime low, the lower low of the two days. Shown on the event page. */
+  night: string;
   source: WeekendSource;
 }
 
@@ -300,9 +303,9 @@ export function eventWeekendWeather(
 
 export function formatWeekendWeather(weather: WeekendWeather): WeekendWeatherText {
   return {
-    temp: `${Math.round(weather.high)}° / ${Math.round(weather.low)}°`,
-    rain: `rain ${Math.round(weather.rainProbability)}%`,
-    snow: weather.snow ? "snow" : null,
+    temp: `${Math.round(weather.high)}°`,
+    rain: `${Math.round(weather.rainProbability)}%`,
+    night: `${Math.round(weather.low)}°`,
     source: weather.source,
   };
 }

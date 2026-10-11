@@ -250,13 +250,13 @@ describe("weekend weather selection", () => {
 });
 
 describe("formatWeekendWeather", () => {
-  it("rounds to a compact temperature and rain line", () => {
+  it("rounds the daytime high, rain chance, and night low", () => {
     expect(
       formatWeekendWeather({ high: 14.4, low: 6.6, rainProbability: 39.6, snow: false, source: "typical" }),
-    ).toEqual({ temp: "14° / 7°", rain: "rain 40%", snow: null, source: "typical" });
+    ).toEqual({ temp: "14°", rain: "40%", night: "7°", source: "typical" });
     expect(
       formatWeekendWeather({ high: 14.5, low: -1.2, rainProbability: 0, snow: true, source: "forecast" }),
-    ).toEqual({ temp: "15° / -1°", rain: "rain 0%", snow: "snow", source: "forecast" });
+    ).toEqual({ temp: "15°", rain: "0%", night: "-1°", source: "forecast" });
   });
 });
 

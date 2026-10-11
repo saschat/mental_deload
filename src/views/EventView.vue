@@ -102,7 +102,7 @@ async function remove() {
         <button v-if="!ev.sourceId" class="icon-btn" title="Delete" :disabled="data.readOnly" @click="remove"><AppIcon name="delete" /></button>
       </div>
       <div>{{ formatRange(ev.start, ev.end) }}<template v-if="timeLabel(ev)"> · {{ timeLabel(ev) }}</template></div>
-      <WeekendWeather v-if="ev.category === 'weekend'" :event="ev" />
+      <WeekendWeather v-if="ev.category === 'weekend'" :event="ev" show-night />
       <div class="row wrap" style="margin-top: 8px; gap: 6px">
         <span class="tag" :class="{ danger: undecided }">{{ countdown }}</span>
         <span v-if="!undecided" class="tag" style="background: #e3f4e5; color: var(--ok)">Decided</span>
