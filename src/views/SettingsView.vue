@@ -4,6 +4,7 @@ import { bzr } from "@/bazaar";
 import AppIcon from "@/components/AppIcon.vue";
 import KidAvatar from "@/components/KidAvatar.vue";
 import TemplateNodes from "@/components/TemplateNodes.vue";
+import { feedKey, type ActivitySourceInfo } from "@/core/activities";
 import { CATEGORIES, CATEGORY_LABELS, KID_COLORS, STATUSES, defaultSettings, newId, statusColor, statusLabel } from "@/core/defaults";
 import { buildRemindersIcs } from "@/core/icsExport";
 import type { Category, Kid, Settings, StatusKey } from "@/core/types";
@@ -17,11 +18,14 @@ import {
   showTestNotification,
   type PeriodicSyncState,
 } from "@/lib/notify";
+import { useActivitiesStore } from "@/stores/activities";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
 
 const data = useDataStore();
 const ui = useUiStore();
+const activities = useActivitiesStore();
+activities.ensure();
 
 //
 // Kids
@@ -40,6 +44,20 @@ async function updateKid(kid: Kid, patch: Partial<Kid>) {
   const next = { ...kid, ...patch };
   if (!next.name.trim()) return;
   await ui.run(() => data.saveKid(next));
+}
+
+const thisYear = new Date().getFullYear();
+const MIN_BIRTH_YEAR = thisYear - 25;
+
+async function setBirthYear(kid: Kid, value: string) {
+  const year = Number(value);
+  const valid = value.trim() !== "" && Number.isInteger(year) && year >= MIN_BIRTH_YEAR && year <= thisYear;
+  if (value.trim() !== "" && !valid) {
+    ui.toast(`Enter a birth year between ${MIN_BIRTH_YEAR} and ${thisYear}.`, "error");
+    return;
+  }
+  // saveKid strips undefined fields, so an empty input clears the year.
+  await updateKid(kid, { birthYear: valid ? year : undefined });
 }
 
 async function setAvatarImage(kid: Kid, e: Event) {
@@ -102,6 +120,24 @@ function discard() {
 
 function resetTemplates() {
   draft.templates = defaultSettings().templates;
+}
+
+//
+// Idea sources (part of the settings draft)
+//
+const ideaSources = computed(() => activities.index?.sources ?? []);
+
+function ideaShown(key: string): boolean {
+  return !draft.hiddenIdeaSources.includes(key);
+}
+
+function setIdeaShown(keys: string[], shown: boolean) {
+  const rest = draft.hiddenIdeaSources.filter((k) => !keys.includes(k));
+  draft.hiddenIdeaSources = shown ? rest : [...rest, ...keys];
+}
+
+function feedKeys(s: ActivitySourceInfo): string[] {
+  return (s.feeds ?? []).map((f) => feedKey(s.id, f.id));
 }
 
 const newTplStatus = ref<StatusKey>("camp");
@@ -207,16 +243,30 @@ async function logout() {
             <KidAvatar :kid="k" :size="40" />
             <input type="file" accept="image/*" hidden @change="setAvatarImage(k, $event)" />
           </label>
-          <input class="input" :value="k.name" aria-label="Name" @change="updateKid(k, { name: ($event.target as HTMLInputElement).value })" />
-          <input
-            class="input emoji"
-            :value="k.avatar && !k.avatar.startsWith('data:') ? k.avatar : ''"
-            maxlength="4"
-            placeholder="🙂"
-            aria-label="Emoji avatar"
-            @change="updateKid(k, { avatar: ($event.target as HTMLInputElement).value || undefined })"
-          />
-          <input type="color" :value="k.color" aria-label="Colour" @change="updateKid(k, { color: ($event.target as HTMLInputElement).value })" />
+          <input class="input name" :value="k.name" aria-label="Name" @change="updateKid(k, { name: ($event.target as HTMLInputElement).value })" />
+          <span class="kid-extras">
+            <input
+              class="input emoji"
+              :value="k.avatar && !k.avatar.startsWith('data:') ? k.avatar : ''"
+              maxlength="4"
+              placeholder="🙂"
+              aria-label="Emoji avatar"
+              @change="updateKid(k, { avatar: ($event.target as HTMLInputElement).value || undefined })"
+            />
+            <input
+              class="input year"
+              type="number"
+              inputmode="numeric"
+              :min="MIN_BIRTH_YEAR"
+              :max="thisYear"
+              :value="k.birthYear ?? ''"
+              placeholder="Born"
+              aria-label="Birth year"
+              title="Birth year, to match activity ideas to age"
+              @change="setBirthYear(k, ($event.target as HTMLInputElement).value)"
+            />
+            <input type="color" :value="k.color" aria-label="Colour" @change="updateKid(k, { color: ($event.target as HTMLInputElement).value })" />
+          </span>
           <button class="icon-btn" title="Remove" @click="removeKid(k)"><AppIcon name="delete" /></button>
         </div>
         <form class="row" style="margin-top: 8px" @submit.prevent="addKid">
@@ -270,6 +320,37 @@ async function logout() {
         <label class="field" style="max-width: 260px"
           ><span>Remind about tasks due within … days</span><input v-model.number="draft.taskDueSoonDays" type="number" min="0"
         /></label>
+      </div>
+
+      <h2 id="idea-sources">Idea sources</h2>
+      <div class="card">
+        <p class="small muted" style="margin-top: 0">What the Ideas page shows. Counts are current entries in the index.</p>
+        <p v-if="!ideaSources.length" class="small muted" style="margin: 0">
+          {{ activities.loading ? "Loading sources…" : (activities.error ?? "The activity index isn't available yet.") }}
+        </p>
+        <div v-for="s in ideaSources" :key="s.id" class="idea-source">
+          <label class="check">
+            <input type="checkbox" :checked="ideaShown(s.id)" @change="setIdeaShown([s.id], ($event.target as HTMLInputElement).checked)" />
+            <span class="spacer">{{ s.name }}</span>
+            <span class="small muted">{{ s.count }}</span>
+          </label>
+          <div v-if="s.feeds?.length && ideaShown(s.id)" class="feeds">
+            <div class="row small feeds-head">
+              <span class="muted spacer">{{ feedKeys(s).filter(ideaShown).length }} of {{ s.feeds.length }} shown</span>
+              <button class="btn text" @click="setIdeaShown(feedKeys(s), true)">All</button>
+              <button class="btn text" @click="setIdeaShown(feedKeys(s), false)">None</button>
+            </div>
+            <label v-for="f in s.feeds" :key="f.id" class="check small">
+              <input
+                type="checkbox"
+                :checked="ideaShown(feedKey(s.id, f.id))"
+                @change="setIdeaShown([feedKey(s.id, f.id)], ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="spacer">{{ f.name }}</span>
+              <span class="muted">{{ f.count }}</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <h2>Status colours</h2>
@@ -347,12 +428,25 @@ async function logout() {
 </template>
 
 <style scoped>
-.kid .input {
-  flex: 1;
+.kid {
+  flex-wrap: wrap;
+}
+.kid .name {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+/* Emoji, birth year and colour wrap under the name on narrow screens. */
+.kid-extras {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .kid .emoji {
-  flex: 0 0 56px;
+  width: 56px;
   text-align: center;
+}
+.kid .year {
+  width: 76px;
 }
 .avatar-pick {
   cursor: pointer;
@@ -368,6 +462,26 @@ input[type="color"] {
 .chip input[type="color"] {
   width: 22px;
   height: 22px;
+}
+.idea-source {
+  padding: 8px 0;
+  border-top: 1px solid var(--surface-2);
+}
+.idea-source:first-of-type {
+  border-top: none;
+}
+.feeds {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px 16px;
+  margin: 6px 0 0 28px;
+}
+.feeds-head {
+  grid-column: 1 / -1;
+}
+.feeds-head .btn {
+  min-height: 28px;
+  padding: 4px 8px;
 }
 .tier {
   align-items: flex-end;

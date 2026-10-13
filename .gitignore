@@ -6,3 +6,6 @@ coverage
 .env
 .DS_Store
 *.tsbuildinfo
+
+# Crawl state of scripts/activities (pnpm activities); the index itself is committed.
+.cache/

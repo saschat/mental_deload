@@ -21,6 +21,7 @@ export const SENT_KEY = "sentReminders";
 export const LAST_CHECK_KEY = "lastReminderCheck";
 export const WEATHER_FORECAST_KEY = "weatherForecast";
 export const WEATHER_CLIMATE_KEY = "weatherClimate";
+export const ACTIVITIES_KEY = "activities";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 

@@ -12,9 +12,10 @@ Built with Vue 3, Vite, TypeScript, Pinia and [Bazaar](https://cloud.bzr.dev) as
 - **Coverage**: per-kid statuses (Child care, Grandparents, Family vacation, Parent off, Holiday camp, Attending, Not relevant), with a "same for both kids" default. Events can be split into segments (e.g. week 1 grandparents, week 2 camp). An event stays in the inbox until every day is covered for every relevant kid.
 - **Tasks**: each status has an editable template of (nested) tasks with due dates relative to the segment start. Changing a status offers to replace the previously generated tasks.
 - **Reminders**: tiered reminders for undecided events (default 6 months, 3 months, 1 month, then weekly; birthdays 3 weeks, 1 week, then every 2 days) plus overdue / due-soon tasks. See [Notifications](#notifications-and-their-limits).
+- **Ideas**: outings, courses and holiday camps around Zürich for a weekend or a holiday, filtered by the weekend forecast (indoor when rain is likely), travel time and your kids' birth years. See [Activity index](#activity-index).
 - **Offline**: the last synced data is cached in IndexedDB; without a connection the app is read-only and shows a banner.
 
-Screens: Inbox (needs decision), Upcoming, Tasks, Event detail, Import & sources, Settings.
+Screens: Inbox (needs decision), Upcoming, Tasks, Ideas, Event detail, Import & sources, Settings.
 
 ## Development
 
@@ -39,6 +40,7 @@ pnpm test        # vitest unit tests for the pure domain modules (src/core)
 pnpm type-check  # vue-tsc
 pnpm build       # type-check + production build (dist/, including the service worker)
 pnpm icons       # regenerate public/icons/*.png (pure Node, no deps)
+pnpm activities  # crawl the activity sources into public/activities.json (see below)
 ```
 
 ## Configuration
@@ -93,6 +95,25 @@ ICS URLs are fetched directly by the browser (Bazaar can't fetch URLs server-sid
 - **Upload the file** instead: download the `.ics` yourself and use "Upload file" on the source. You can upload a new version later, and the import stays idempotent.
 - **CORS proxy**: Settings → CORS proxy prefix. The calendar URL is appended to the prefix (URL-encoded), or substituted for `{url}` if the prefix contains it, e.g. `https://my-proxy.example/?url=`. Only use a proxy you trust: secret calendar URLs pass through it.
 
+## Activity index
+
+The Ideas screen reads `activities.json`, a static index built locally by `scripts/activities`, committed as `public/activities.json` and deployed with the app. The deploy workflow does not crawl: to refresh the ideas, run `pnpm activities`, then commit and push the updated index. A source that fails keeps its previous entries.
+
+| Source | What | How it is read |
+| --- | --- | --- |
+| [swissfamilyfun.com](https://swissfamilyfun.com) | Hikes and outings across Switzerland: km, hours, climb, highest point, car/train time from Zürich, season, stroller, cost | Sitemap plus each post's fact table. The WordPress API is blocked. Round-ups without a fact table are skipped. |
+| [familienausflug.info](https://familienausflug.info) | Rainy-day and indoor places within 60 km: age bands, stroller, season | Region listings, then each entry's JSON-LD and property blocks |
+| [OpenStreetMap](https://www.openstreetmap.org) | Indoor playgrounds, trampoline parks, climbing halls, ice rinks, pools within 45 km | Overpass API |
+| [Zürcher Gemeinschaftszentren](https://gz-zh.ch) | Kids' and family offers of all 17 GZs, including holiday weeks: dates, cost, ages, drop-in or sign-up | Each centre's `angebote` sitemap and offer pages. Centre locations come from the city's open-data WFS. |
+| [Sportamt Stadt Zürich](https://www.stadt-zuerich.ch/sport-portal/angebot/ferienkurse) | Holiday and semester courses with birth-year ranges | The course portal's JSON API (`POST /sport-portal/API/api/courses`). It is undocumented and may change. |
+| [Pro Juventute Ferienplausch](https://ferienplausch.feriennet.projuventute.ch) | Summer holiday activities with age, cost and location | Feriennet's public `/activities/json` |
+
+The index keeps facts and a link only: no descriptions or images are copied, and every card links to the source page. Coordinates without a source value are geocoded with [geo.admin.ch](https://api3.geo.admin.ch) and elevations come from [Open-Meteo](https://open-meteo.com). The crawler waits between requests to each host and honours robots.txt crawl delays.
+
+Run it locally with `pnpm activities` (Node 24+). `--only=gz,osm` limits the sources and `--max-pages=20` caps detail pages per source for a quick test. The first full run takes about an hour (mostly swissfamilyfun posts); incremental runs take a few minutes, because the crawl state in `.cache/activities-state.json` (gitignored) remembers which pages are unchanged. Without that file the next run is a full crawl again.
+
+There is no official API for the City of Zürich's holiday offers. The city's [Ferienangebote für Kinder](https://www.stadt-zuerich.ch/de/lebenslagen/jugend-und-familie/kinder/freizeit-und-ferien/ferienangebote-fuer-kinder.html) page is a hand-maintained list per holiday that mostly links to GZ offers, which the GZ source covers.
+
 ## Project structure
 
 ```
@@ -107,6 +128,7 @@ src/
     icsParse.ts    ICS parsing + recurrence expansion (ical.js)
     importDiff.ts  Import planning: create / update / flag / remove
     icsExport.ts   Reminders .ics export with VALARMs
+    activities.ts  Activity index types and the Ideas filters (season, dates, ages, travel)
   lib/           Browser glue: IndexedDB, notifications, ICS fetch, reminder check
   stores/        Pinia stores (data mirrors the Bazaar collections; ui for toasts/dialogs)
   components/    UI components (coverage editor, task tree, status sheet, ...)
@@ -114,7 +136,7 @@ src/
   sw.ts          Service worker: precache, periodic sync reminders, notification clicks
   bazaar.ts      Bazaar SDK singleton
 samples/         Sample school calendar for development
-scripts/         Icon generator
+scripts/         Icon generator; activities/ builds the activity index (one module per source)
 ```
 
 Data is stored in five owner-scoped Bazaar collections: `kids`, `sources`, `events`, `tasks` and `settings`.

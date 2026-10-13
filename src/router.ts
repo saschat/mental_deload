@@ -9,6 +9,7 @@ export const router = createRouter({
     { path: "/", name: "inbox", component: InboxView, meta: { title: "Needs decision", tab: true } },
     { path: "/upcoming", name: "upcoming", component: () => import("@/views/UpcomingView.vue"), meta: { title: "Upcoming", tab: true } },
     { path: "/tasks", name: "tasks", component: () => import("@/views/TasksView.vue"), meta: { title: "Tasks", tab: true } },
+    { path: "/ideas", name: "ideas", component: () => import("@/views/IdeasView.vue"), meta: { title: "Ideas", tab: true } },
     { path: "/event/new", name: "event-new", component: () => import("@/views/EventFormView.vue"), meta: { title: "New event" } },
     { path: "/event/:id", name: "event", component: () => import("@/views/EventView.vue"), meta: { title: "Event" } },
     { path: "/event/:id/edit", name: "event-edit", component: () => import("@/views/EventFormView.vue"), meta: { title: "Edit event" } },

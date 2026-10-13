@@ -172,6 +172,10 @@ function fab(to: string) {
         <span class="pill"><AppIcon name="tasks" /></span>
         <span>Tasks</span>
       </RouterLink>
+      <RouterLink to="/ideas" class="nav-item" active-class="active">
+        <span class="pill"><AppIcon name="explore" /></span>
+        <span>Ideas</span>
+      </RouterLink>
     </nav>
 
     <BottomSheet :open="fabOpen" title="Add" @close="fabOpen = false">

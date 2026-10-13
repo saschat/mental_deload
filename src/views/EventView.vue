@@ -57,6 +57,13 @@ const countdown = computed(() => {
   if (ev.value.end < data.today) return "past";
   return relativeDays(ev.value.start, data.today);
 });
+/** Weekends and holidays link to activity ideas for their dates. */
+const ideasLink = computed(() => {
+  const event = ev.value;
+  if (!event || event.end < data.today || !["weekend", "vacation", "school"].includes(event.category)) return null;
+  const start = event.start < data.today ? data.today : event.start;
+  return { path: "/ideas", query: { start, end: event.end, title: event.title } };
+});
 const dueSoonTasks = computed(
   () => tasks.value.filter((t) => !t.done && t.due && diffDays(data.today, t.due) <= data.settings.taskDueSoonDays).length,
 );
@@ -108,6 +115,7 @@ async function remove() {
         <span v-if="!undecided" class="tag" style="background: #e3f4e5; color: var(--ok)">Decided</span>
       </div>
       <CategoryChips :model-value="ev.category" :disabled="data.readOnly" @update:model-value="setCategory" />
+      <RouterLink v-if="ideasLink" :to="ideasLink" class="btn tonal ideas"><AppIcon name="explore" :size="18" /> Find ideas</RouterLink>
       <p v-if="ev.location" class="small muted" style="margin-bottom: 0">📍 {{ ev.location }}</p>
       <p v-if="ev.description" class="small muted desc">{{ ev.description }}</p>
     </div>
@@ -179,6 +187,10 @@ async function remove() {
 <style scoped>
 .header .title {
   font-size: 22px;
+}
+.ideas {
+  margin-top: 10px;
+  text-decoration: none;
 }
 .desc {
   white-space: pre-line;

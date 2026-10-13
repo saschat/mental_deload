@@ -165,6 +165,7 @@ export function defaultSettings(): Settings {
     reminderTiers: defaultReminderTiers(),
     taskDueSoonDays: 3,
     corsProxy: "",
+    hiddenIdeaSources: [],
   };
 }
 

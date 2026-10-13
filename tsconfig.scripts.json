@@ -1,0 +1,15 @@
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "include": ["scripts/activities/**/*.ts", "src/core/activities.ts", "src/core/geo.ts", "src/core/dates.ts", "src/core/types.ts"],
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.scripts.tsbuildinfo",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    // Node runs these files by stripping types, which rejects enums and parameter properties.
+    "erasableSyntaxOnly": true,
+    "types": ["node"]
+  }
+}

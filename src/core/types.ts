@@ -33,6 +33,8 @@ export interface Kid {
   /** Emoji or small data: URL image. */
   avatar?: string;
   order?: number;
+  /** Matches activity ideas to the kid's age. */
+  birthYear?: number;
 }
 
 export interface Source {
@@ -142,4 +144,9 @@ export interface Settings {
   /** Remind about tasks due within this many days. */
   taskDueSoonDays: number;
   corsProxy: string;
+  /**
+   * Activity sources switched off for the Ideas page: a source id ("osm") or
+   * one feed of a source ("gz/gz-witikon").
+   */
+  hiddenIdeaSources: string[];
 }
