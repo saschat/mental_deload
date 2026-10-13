@@ -4,8 +4,13 @@ import { defineStore } from "pinia";
 import type { ActivityIndex } from "@/core/activities";
 import { ACTIVITIES_KEY, idbGet, idbSet } from "@/lib/idb";
 
-/** The index is rebuilt weekly; checking twice a day is plenty. */
-const CACHE_MS = 12 * 60 * 60 * 1000;
+/**
+ * Revalidate on the first visit after the app starts (so pulling down to
+ * reload also reloads the ideas) and then after a short pause. The fetch is
+ * conditional ("no-cache"), so an unchanged index costs a 304, and the cached
+ * copy is shown meanwhile.
+ */
+const CACHE_MS = 5 * 60 * 1000;
 
 interface Cached {
   v: 1;
@@ -24,6 +29,7 @@ export const useActivitiesStore = defineStore("activities", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   let hydrated = false;
+  let checkedThisRun = false;
   let pending: Promise<void> | null = null;
 
   const activities = computed(() => index.value?.activities ?? []);
@@ -62,7 +68,10 @@ export const useActivitiesStore = defineStore("activities", () => {
     if (pending) return pending;
     pending = (async () => {
       if (!hydrated) await hydrate();
-      if (force || fetchedAt.value === null || Date.now() - fetchedAt.value >= CACHE_MS) await refresh();
+      if (force || !checkedThisRun || fetchedAt.value === null || Date.now() - fetchedAt.value >= CACHE_MS) {
+        checkedThisRun = true;
+        await refresh();
+      }
     })().finally(() => {
       pending = null;
     });

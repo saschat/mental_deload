@@ -16,6 +16,8 @@ const props = defineProps<{
   /** The activity's dates within the target, for camps and events. */
   dates?: ActivityDate[];
   target: IdeaTarget;
+  /** Typical weather there for the target's dates. */
+  typical?: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -104,6 +106,7 @@ async function save() {
   <BottomSheet :open="!!activity" :title="activity ? `Add ${activity.title}` : ''" @close="emit('close')">
     <template v-if="activity">
       <p class="small muted lead">As an activity in {{ target.title }}. Pick the days{{ kids.length > 1 ? " and kids" : "" }}.</p>
+      <p v-if="typical" class="small typical">{{ typical }}</p>
       <div class="chips wrap">
         <button
           v-for="d in days"
@@ -138,6 +141,9 @@ async function save() {
 <style scoped>
 .lead {
   margin: -6px 0 8px;
+}
+.typical {
+  margin: 0 0 8px;
 }
 .actions {
   margin-top: 8px;

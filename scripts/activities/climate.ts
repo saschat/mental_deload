@@ -1,9 +1,9 @@
 // Typical weather per region for outdoor places: ten years of daily highs and
-// precipitation from the Open-Meteo archive, reduced to monthly normals. A
+// precipitation from the Open-Meteo archive, reduced to half-month normals. A
 // region is fetched once and kept in the crawl state; history does not change.
 
 import type { Activity } from "../../src/core/activities.ts";
-import { climateCell, monthlyNormals, type CellClimate, type DailyRow } from "../../src/core/climate.ts";
+import { CLIMATE_POINTS, climateCell, climateNormals, type CellClimate, type DailyRow } from "../../src/core/climate.ts";
 import type { CrawlState } from "./context.ts";
 import type { Http } from "./http.ts";
 
@@ -22,7 +22,12 @@ export function parseArchive(body: ArchiveBody): CellClimate | null {
     high: d.temperature_2m_max?.[i] ?? null,
     precipitationMm: d.precipitation_sum?.[i] ?? null,
   }));
-  return monthlyNormals(rows, body.elevation);
+  return climateNormals(rows, body.elevation);
+}
+
+/** Places that may be outdoors: everything not marked indoor, except dated offers. */
+function wantsClimate(a: Activity): boolean {
+  return a.setting !== "indoor" && !a.dates && a.lat !== undefined && a.lng !== undefined;
 }
 
 /** Climate of every region with an outdoor place, keyed by cell. */
@@ -36,10 +41,11 @@ export async function climateFor(
   state.climate ??= {};
   const cells = new Set<string>();
   for (const a of activities) {
-    if (a.setting === "outdoor" && a.lat !== undefined && a.lng !== undefined) cells.add(climateCell(a.lat, a.lng));
+    if (wantsClimate(a)) cells.add(climateCell(a.lat!, a.lng!));
   }
   const lastYear = now.getFullYear() - 1;
-  const missing = [...cells].filter((c) => !state.climate![c]);
+  // Regions stored in an older format (monthly) are fetched again.
+  const missing = [...cells].filter((c) => state.climate![c]?.high?.length !== CLIMATE_POINTS);
   if (missing.length) log(`climate: fetching ${missing.length} of ${cells.size} regions`);
   for (const cell of missing) {
     const [lat, lng] = cell.split(",");
@@ -58,5 +64,6 @@ export async function climateFor(
       log(`climate: ${cell} failed: ${(e as Error).message}`);
     }
   }
-  return Object.fromEntries([...cells].filter((c) => state.climate![c]).sort().map((c) => [c, state.climate![c]]));
+  const ok = [...cells].filter((c) => state.climate![c]?.high?.length === CLIMATE_POINTS).sort();
+  return Object.fromEntries(ok.map((c) => [c, state.climate![c]]));
 }

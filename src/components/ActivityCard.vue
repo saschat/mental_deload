@@ -12,7 +12,7 @@ const props = defineProps<{
   addTo?: string;
   /** Days it is already planned on, e.g. "Sat 24 Oct". */
   planned?: string;
-  /** Typical weather there for the chosen dates, e.g. "Typical Oct: 9° at 2125 m · 35% rainy days". */
+  /** Typical weather there for the chosen dates, e.g. "Typically 9° at 2125 m · 35% rainy days". */
   typical?: string;
 }>();
 const emit = defineEmits<{ add: [] }>();

@@ -72,8 +72,8 @@ async function main() {
       "ferienplausch.feriennet.projuventute.ch": 10_000,
       "api3.geo.admin.ch": 250,
       "api.open-meteo.com": 250,
-      // Ten years of history is a heavy request; space them out.
-      "archive-api.open-meteo.com": 3000,
+      // Ten years of history is a heavy request; Open-Meteo answers 429 when they come faster.
+      "archive-api.open-meteo.com": 8000,
     },
     log,
   });

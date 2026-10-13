@@ -11,8 +11,6 @@ import {
   CATEGORIES,
   feedKey,
   findIdeas,
-  monthsInRange,
-  seasonLabel,
   SOURCE_SHORT_NAMES,
   suggestedSetting,
   type Activity,
@@ -166,15 +164,14 @@ const settingReason = computed(() => {
   return "";
 });
 
-// Typical weather at outdoor places for the target's months.
-const targetMonths = computed(() => monthsInRange(target.value.start, target.value.end));
+// Typical weather at outdoor places for the target's dates.
 function typical(a: Activity): string | undefined {
-  if (a.setting !== "outdoor" || a.lat === undefined || a.lng === undefined) return undefined;
+  if (a.setting === "indoor" || a.dates || a.lat === undefined || a.lng === undefined) return undefined;
   const climate = store.index?.climate?.[climateCell(a.lat, a.lng)];
-  const t = climate && typicalWeather(climate, targetMonths.value, a.altitudeM);
+  const t = climate && typicalWeather(climate, target.value.start, target.value.end, a.altitudeM);
   if (!t) return undefined;
   const at = a.altitudeM !== undefined && a.altitudeM >= 800 ? ` at ${a.altitudeM} m` : "";
-  return `Typical ${seasonLabel(targetMonths.value)}: ${t.high}°${at} · ${t.rain}% rainy days`;
+  return `Typically ${t.high}°${at} · ${t.rain}% rainy days`;
 }
 
 // Planning a place into the target.
@@ -193,6 +190,7 @@ const planned = computed(() => {
 });
 const addTo = computed(() => (data.readOnly ? undefined : target.value.title));
 const adding = ref<{ activity: Activity; dates?: ActivityDate[] } | null>(null);
+const addingTypical = computed(() => (adding.value ? typical(adding.value.activity) : undefined));
 
 </script>
 
@@ -330,7 +328,13 @@ const adding = ref<{ activity: Activity; dates?: ActivityDate[] } | null>(null);
       </button>
     </BottomSheet>
 
-    <AddActivitySheet :activity="adding?.activity ?? null" :dates="adding?.dates" :target="target" @close="adding = null" />
+    <AddActivitySheet
+      :activity="adding?.activity ?? null"
+      :dates="adding?.dates"
+      :target="target"
+      :typical="addingTypical"
+      @close="adding = null"
+    />
   </div>
 </template>
 
