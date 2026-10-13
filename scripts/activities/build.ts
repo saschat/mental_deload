@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { Activity, ActivityIndex, ActivitySourceId, ActivitySourceInfo } from "../../src/core/activities.ts";
+import { categorize } from "../../src/core/categories.ts";
 import { emptyState, type Context, type CrawlState, type Source } from "./context.ts";
 import { familienausflug } from "./familienausflug.ts";
 import { ferienplausch } from "./ferienplausch.ts";
@@ -98,6 +99,8 @@ async function main() {
   await enrich(http, state, unique, log);
   const today = now.toISOString().slice(0, 10);
   const final = prune(unique, today).sort((a, b) => a.id.localeCompare(b.id));
+  // Categories are derived from the stored facts, so rule changes apply to cached entries too.
+  for (const a of final) a.category = categorize(a);
   for (const info of infos) {
     const mine = final.filter((a) => a.source === info.id);
     info.count = mine.length;

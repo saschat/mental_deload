@@ -434,7 +434,10 @@ export const useDataStore = defineStore("data", () => {
     });
     await inBatches(plan.flagChanged, 20, async (f) => {
       const ev = byId.get(f.id);
-      if (ev) await write(col.events.replaceOne(f.id, stripUndefined({ ...ev, upstreamFlag: "changed", upstreamPending: f.pending })));
+      if (ev) {
+        const doc = { ...ev, upstreamFlag: "changed" as const, upstreamPending: f.pending, category: f.category ?? ev.category };
+        await write(col.events.replaceOne(f.id, stripUndefined(doc)));
+      }
     });
     await inBatches(plan.flagRemoved, 20, async (id) => {
       const ev = byId.get(id);

@@ -6,7 +6,9 @@
  * and images stay on the source sites.
  */
 import { addDays, weekday } from "./dates";
+import { categorize, type ActivityCategory } from "./categories";
 export { distanceKm, ZURICH_HB } from "./geo";
+export { CATEGORIES, categorize, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
 
 export type ActivitySourceId = "swissfamilyfun" | "familienausflug" | "osm" | "gz" | "sportamt" | "ferienplausch";
@@ -41,6 +43,8 @@ export interface Activity {
   url: string;
   /** Short label: "Hike", "Museum", "Indoor play", "Holiday course" … */
   kind: string;
+  /** What it is about, for the category filter. Set by the indexer (see categorize). */
+  category?: ActivityCategory;
   setting?: Setting;
   lat?: number;
   lng?: number;
@@ -90,6 +94,10 @@ export interface ActivityIndex {
   generatedAt: string;
   sources: ActivitySourceInfo[];
   activities: Activity[];
+}
+
+export function activityCategory(a: Activity): ActivityCategory {
+  return a.category ?? categorize(a);
 }
 
 /** Chip labels on the Ideas page. */
@@ -249,11 +257,11 @@ export interface DatedIdea {
 }
 
 export interface Ideas {
-  /** Camps, events and one-off courses with a date in the range, soonest first; full ones last. */
+  /** Camps, events and one-off courses with a date in the range: those within it first, then soonest; full ones last. */
   dated: DatedIdea[];
   /** Courses that run weekly over months (semester courses), same order. */
   weekly: DatedIdea[];
-  /** Places to go any time in season, closest first. */
+  /** Places to go any time in season: seasonal ones first, then closest first. */
   places: Activity[];
 }
 
@@ -271,14 +279,21 @@ export function findIdeas(activities: readonly Activity[], q: IdeaQuery): Ideas 
       places.push(a);
     }
   }
+  // Offers that happen within the dates (a Saturday event, a camp week) rank
+  // above long runs that merely overlap them.
+  const within = (d: DatedIdea) => Number(d.dates.some((x) => x.start >= q.start && (x.end ?? x.start) <= q.end));
   const byDate = (x: DatedIdea, y: DatedIdea) =>
     Number(x.activity.booking === "closed") - Number(y.activity.booking === "closed") ||
+    within(y) - within(x) ||
     x.dates[0].start.localeCompare(y.dates[0].start) ||
     x.activity.title.localeCompare(y.activity.title);
   dated.sort(byDate);
   weekly.sort(byDate);
   const minutes = (a: Activity) => travelMinutes(a)?.minutes ?? Number.POSITIVE_INFINITY;
-  places.sort((x, y) => minutes(x) - minutes(y) || x.title.localeCompare(y.title));
+  // Places with a season that includes the dates (sledding in winter, a pool
+  // in summer) suit those dates better than places that are always open.
+  const seasonal = (a: Activity) => Number(!!a.months?.length && a.months.length < 12);
+  places.sort((x, y) => seasonal(y) - seasonal(x) || minutes(x) - minutes(y) || x.title.localeCompare(y.title));
   return { dated, weekly, places };
 }
 

@@ -111,6 +111,8 @@ describe("detectCategory", () => {
     expect(detectCategory("Kindergeburtstag Paul", "other")).toBe("birthday");
     expect(detectCategory("Herbstferien", "school")).toBe("vacation");
     expect(detectCategory("Half-term break", "school")).toBe("vacation");
+    expect(detectCategory("Schulfrei (Knabenschiessen)", "school")).toBe("vacation");
+    expect(detectCategory("Unterrichtsfrei / schulfreier Nachmittag", "school")).toBe("vacation");
     expect(detectCategory("Sports day", "auto")).toBe("other");
     expect(detectCategory("Sports day", "school")).toBe("school");
   });
@@ -142,6 +144,16 @@ describe("planImport", () => {
     const events = apply([], plan1);
     const plan2 = planImport({ ...base, existing: events, parsed });
     expect(summarize(plan2)).toEqual({ created: 0, updated: 0, flagged: 0, removed: 0, unchanged: 6 });
+  });
+
+  it("moves imported school events that now read as a holiday to vacation", () => {
+    const schulfrei = PARENTS_EVENING.replace("pe@school", "sf@school").replace("Parents evening", "Schulfrei");
+    const parsed = parseIcs(cal(schulfrei, PARENTS_EVENING), opts).items;
+    const events = apply([], planImport({ ...base, existing: [], parsed })).map((e) => ({ ...e, category: "school" as const }));
+    const manual = events.map((e) => (e.externalKey === "pe@school" ? { ...e, category: "other" as const } : e));
+    const plan = planImport({ ...base, existing: manual, parsed });
+    expect(plan.update).toEqual([{ id: manual.find((e) => e.externalKey === "sf@school")!.id, patch: { category: "vacation" } }]);
+    expect(summarize(plan)).toMatchObject({ updated: 1, unchanged: 1 });
   });
 
   it("silently updates and deletes undecided events", () => {

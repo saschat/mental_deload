@@ -12,7 +12,7 @@ Built with Vue 3, Vite, TypeScript, Pinia and [Bazaar](https://cloud.bzr.dev) as
 - **Coverage**: per-kid statuses (Child care, Grandparents, Family vacation, Parent off, Holiday camp, Attending, Not relevant), with a "same for both kids" default. Events can be split into segments (e.g. week 1 grandparents, week 2 camp). An event stays in the inbox until every day is covered for every relevant kid.
 - **Tasks**: each status has an editable template of (nested) tasks with due dates relative to the segment start. Changing a status offers to replace the previously generated tasks.
 - **Reminders**: tiered reminders for undecided events (default 6 months, 3 months, 1 month, then weekly; birthdays 3 weeks, 1 week, then every 2 days) plus overdue / due-soon tasks. See [Notifications](#notifications-and-their-limits).
-- **Ideas**: outings, courses and holiday camps around Zürich for a weekend or a holiday, filtered by the weekend forecast (indoor when rain is likely), travel time and your kids' birth years. See [Activity index](#activity-index).
+- **Ideas**: outings, courses and holiday camps around Zürich for any upcoming weekend or holiday. Offers on those dates and seasonal places come first; filters (indoor/outdoor, travel time, category such as hikes, museums or pools, source, search) sit in a collapsible panel, and the weekend forecast preselects indoor or outdoor. Ideas match your kids' birth years, and any idea can be added to the weekend or holiday as an activity. See [Activity index](#activity-index).
 - **Offline**: the last synced data is cached in IndexedDB; without a connection the app is read-only and shows a banner.
 
 Screens: Inbox (needs decision), Upcoming, Tasks, Ideas, Event detail, Import & sources, Settings.

@@ -8,7 +8,12 @@ const props = defineProps<{
   activity: Activity;
   /** Dates within the chosen range, for courses and events. */
   dates?: ActivityDate[];
+  /** Name of the weekend or holiday to plan it into; no add button when missing. */
+  addTo?: string;
+  /** Days it is already planned on, e.g. "Sat 24 Oct". */
+  planned?: string;
 }>();
+const emit = defineEmits<{ add: [] }>();
 
 const MAX_DATES = 3;
 
@@ -65,6 +70,16 @@ const weekly = computed(() => {
       <a :href="activity.url" target="_blank" rel="noopener noreferrer" class="title">{{ activity.title }}</a>
       <span v-if="activity.booking === 'closed'" class="tag warn">Full</span>
       <span class="spacer" />
+      <button
+        v-if="addTo"
+        class="icon-btn add"
+        :class="{ done: planned }"
+        :title="planned ? `Planned for ${planned}` : `Add to ${addTo}`"
+        :aria-label="planned ? `Planned for ${planned}; add again` : `Add to ${addTo}`"
+        @click="emit('add')"
+      >
+        <AppIcon :name="planned ? 'check' : 'add'" :size="20" />
+      </button>
       <a :href="activity.url" target="_blank" rel="noopener noreferrer" class="icon-btn" :title="`Open on ${SOURCE_NAMES[activity.source]}`">
         <AppIcon name="open" :size="18" />
       </a>
@@ -75,7 +90,8 @@ const weekly = computed(() => {
       <li v-for="d in dates.slice(0, MAX_DATES)" :key="d.start + (d.time ?? '')">{{ dateText(d) }}<template v-if="weekly"> · {{ weekly }}</template></li>
       <li v-if="dates.length > MAX_DATES" class="muted">+{{ dates.length - MAX_DATES }} more dates</li>
     </ul>
-    <div v-if="facts.length" class="facts">
+    <div v-if="facts.length || planned" class="facts">
+      <span v-if="planned" class="tag ok">Planned · {{ planned }}</span>
       <span v-for="f in facts" :key="f" class="tag">{{ f }}</span>
     </div>
     <div class="source small muted">{{ SOURCE_NAMES[activity.source] }}</div>
@@ -104,6 +120,16 @@ const weekly = computed(() => {
 .head .icon-btn {
   margin: -6px -6px -6px 0;
   color: var(--text-2);
+}
+.head .add {
+  color: var(--primary);
+}
+.head .add.done {
+  color: var(--ok);
+}
+.tag.ok {
+  background: #e3f4e5;
+  color: var(--ok);
 }
 .dates {
   margin: 2px 0 0;

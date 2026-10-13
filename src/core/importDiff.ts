@@ -24,7 +24,7 @@ export interface ImportPlan {
   /** Silent updates for events without decisions, or clearing stale flags. */
   update: { id: string; patch: Partial<FamilyEvent> }[];
   /** Decided events whose upstream data changed: flag + store pending values. */
-  flagChanged: { id: string; pending: UpstreamSnapshot }[];
+  flagChanged: { id: string; pending: UpstreamSnapshot; category?: FamilyEvent["category"] }[];
   /** Decided events that disappeared upstream. */
   flagRemoved: string[];
   /** Undecided events that disappeared upstream. */
@@ -100,9 +100,16 @@ export function planImport(args: {
       continue;
     }
 
+    // Titles the category rules now read as a holiday ("Schulfrei") move out of
+    // "school"; any other category was chosen on purpose and stays.
+    const recategorize: Partial<FamilyEvent> = ev.category === "school" && item.category === "vacation" ? { category: "vacation" } : {};
+    const recategorized = "category" in recategorize;
+
     if (sameSnapshot(snapshotOf(ev), snap)) {
       if (ev.upstreamFlag || ev.upstreamPending) {
-        plan.update.push({ id: ev.id, patch: { upstreamFlag: null, upstreamPending: null } });
+        plan.update.push({ id: ev.id, patch: { upstreamFlag: null, upstreamPending: null, ...recategorize } });
+      } else if (recategorized) {
+        plan.update.push({ id: ev.id, patch: recategorize });
       } else {
         plan.unchanged++;
       }
@@ -112,15 +119,17 @@ export function planImport(args: {
     if (!isInvested(ev, args.tasks)) {
       plan.update.push({
         id: ev.id,
-        patch: { ...emptySnapshotPatch(), ...snap, upstreamFlag: null, upstreamPending: null, updatedAt: args.now },
+        patch: { ...emptySnapshotPatch(), ...snap, upstreamFlag: null, upstreamPending: null, updatedAt: args.now, ...recategorize },
       });
       continue;
     }
 
     const alreadyKnown =
       (ev.upstreamFlag === "changed" && sameSnapshot(ev.upstreamPending, snap)) || sameSnapshot(ev.upstreamIgnored, snap);
-    if (alreadyKnown) plan.unchanged++;
-    else plan.flagChanged.push({ id: ev.id, pending: snap });
+    if (alreadyKnown) {
+      if (recategorized) plan.update.push({ id: ev.id, patch: recategorize });
+      else plan.unchanged++;
+    } else plan.flagChanged.push({ id: ev.id, pending: snap, ...recategorize });
   }
 
   for (const ev of mine) {

@@ -7,6 +7,7 @@ import {
   hiddenBecauseNotRelevant,
   isUndecided,
   kidSegmentSummary,
+  placeBlock,
   relevantKidIds,
   removeSegment,
   segmentHeading,
@@ -209,5 +210,41 @@ describe("coverage names", () => {
     const segs: Segment[] = [{ id: "s", start: "2026-07-01", end: "2026-07-14", statuses: { a: "camp" }, name: "Circus" }];
     expect(setSegmentName(segs, "s", "Ibiza")[0]).toMatchObject({ name: "Ibiza", statuses: { a: "camp" } });
     expect(setSegmentName(segs, "s", "  ")[0].name).toBeUndefined();
+  });
+});
+
+describe("placeBlock", () => {
+  const strip = (segs: Segment[]) => segs.map(({ start, end, statuses, name }) => ({ start, end, statuses, ...(name ? { name } : {}) }));
+
+  it("turns one day of an empty event into a named activity block", () => {
+    const { segments, id } = placeBlock(ev([]), "2026-07-04", "2026-07-04", { a: "activity", b: "activity" }, " Kiddy Park ");
+    expect(strip(segments)).toEqual([
+      { start: "2026-07-01", end: "2026-07-03", statuses: {} },
+      { start: "2026-07-04", end: "2026-07-04", statuses: { a: "activity", b: "activity" }, name: "Kiddy Park" },
+      { start: "2026-07-05", end: "2026-07-14", statuses: {} },
+    ]);
+    expect(segments.find((s) => s.id === id)?.name).toBe("Kiddy Park");
+  });
+
+  it("keeps neighbouring statuses and the ids of blocks it trims", () => {
+    const camp: Segment = { id: "s1", start: "2026-07-01", end: "2026-07-07", statuses: { a: "camp", b: "grandparents" } };
+    const rest: Segment = { id: "s2", start: "2026-07-08", end: "2026-07-14", statuses: { a: "vacation" } };
+    const { segments } = placeBlock(ev([camp, rest]), "2026-07-06", "2026-07-09", { a: "activity" }, "Zoo");
+    expect(strip(segments)).toEqual([
+      { start: "2026-07-01", end: "2026-07-05", statuses: { a: "camp", b: "grandparents" } },
+      { start: "2026-07-06", end: "2026-07-09", statuses: { a: "activity", b: "grandparents" }, name: "Zoo" },
+      { start: "2026-07-10", end: "2026-07-14", statuses: { a: "vacation" } },
+    ]);
+    expect(segments[0].id).toBe("s1");
+    expect(segments[2].id).toBe("s2");
+  });
+
+  it("reuses a block that matches the range exactly and clips to the event", () => {
+    const sat: Segment = { id: "sat", start: "2026-07-01", end: "2026-07-01", statuses: {} };
+    const sun: Segment = { id: "sun", start: "2026-07-02", end: "2026-07-02", statuses: {} };
+    const weekend = { start: "2026-07-01", end: "2026-07-02", segments: [sat, sun] };
+    expect(placeBlock(weekend, "2026-07-02", "2026-07-02", { a: "activity" }, "Pool").id).toBe("sun");
+    const { segments } = placeBlock(weekend, "2026-06-28", "2026-07-01", { a: "activity" }, "Camp");
+    expect(strip(segments)[0]).toEqual({ start: "2026-07-01", end: "2026-07-01", statuses: { a: "activity" }, name: "Camp" });
   });
 });

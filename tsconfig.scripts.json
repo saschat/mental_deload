@@ -1,6 +1,6 @@
 {
   "extends": "@tsconfig/node24/tsconfig.json",
-  "include": ["scripts/activities/**/*.ts", "src/core/activities.ts", "src/core/geo.ts", "src/core/dates.ts", "src/core/types.ts"],
+  "include": ["scripts/activities/**/*.ts", "src/core/activities.ts", "src/core/geo.ts", "src/core/categories.ts", "src/core/dates.ts", "src/core/types.ts"],
   "compilerOptions": {
     "composite": true,
     "noEmit": true,

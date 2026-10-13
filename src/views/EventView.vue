@@ -61,8 +61,7 @@ const countdown = computed(() => {
 const ideasLink = computed(() => {
   const event = ev.value;
   if (!event || event.end < data.today || !["weekend", "vacation", "school"].includes(event.category)) return null;
-  const start = event.start < data.today ? data.today : event.start;
-  return { path: "/ideas", query: { start, end: event.end, title: event.title } };
+  return { path: "/ideas", query: { for: `event:${event.id}` } };
 });
 const dueSoonTasks = computed(
   () => tasks.value.filter((t) => !t.done && t.due && diffDays(data.today, t.due) <= data.settings.taskDueSoonDays).length,

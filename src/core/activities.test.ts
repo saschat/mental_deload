@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ageLabel,
+  categorize,
   datesInRange,
   findIdeas,
   fitsBirthYear,
@@ -152,5 +153,23 @@ describe("hikeLine", () => {
     );
     expect(hikeLine(act({ altitudeM: 420 }))).toBe("");
     expect(hikeLine(act({ altitudeM: 1500 }))).toBe("1500 m");
+  });
+});
+
+describe("categorize", () => {
+  const base = { source: "swissfamilyfun" as const, title: "", kind: "Outing" };
+  it.each([
+    [{ ...base, kind: "Hike" }, "hike"],
+    [{ ...base, source: "osm" as const, kind: "Outdoor pool" }, "swim"],
+    [{ ...base, title: "Bern Onion Market Festival", tags: ["Cultural Events"] }, "events"],
+    [{ ...base, title: "Murten – Classic Swiss Village", tags: ["Cities & Villages"] }, "trips"],
+    [{ ...base, source: "familienausflug" as const, kind: "Familienevent", title: "Detektiv-Trail Baden" }, "hike"],
+    [{ ...base, source: "gz" as const, kind: "Holiday camp", title: "Keine Angst mehr vor Hunden" }, "animals"],
+    [{ ...base, source: "gz" as const, kind: "Offer", title: "Familienberatung", tags: ["wissen-beratung"] }, "other"],
+    [{ ...base, source: "sportamt" as const, kind: "Holiday course", title: "GC Unihockey Kids Camp", tags: ["Unihockey"] }, "sport"],
+    [{ ...base, source: "sportamt" as const, kind: "Holiday course", title: "Abenteuer Fotografie", tags: ["Wissenschaft und Technik"] }, "creative"],
+    [{ ...base, source: "sportamt" as const, kind: "Semester course", title: "Wasserspringen", tags: ["Wasserspringen"] }, "swim"],
+  ])("%o → %s", (a, category) => {
+    expect(categorize(a)).toBe(category);
   });
 });

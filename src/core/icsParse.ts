@@ -26,7 +26,7 @@ export interface ParseResult {
 
 const BIRTHDAY_RE = /\b(birthday|b-?day|geburtstag|anniversaire|cumplea[nñ]os)\b|geburtstag/i;
 const VACATION_RE =
-  /\b(holidays?|vacations?|break|half[- ]term|urlaub|vacances|bridge day|br[uü]ckentag)\b|ferien|feiertag/i;
+  /\b(holidays?|vacations?|break|half[- ]term|urlaub|vacances|bridge day|br[uü]ckentag)\b|ferien|feiertag|schulfrei/i;
 
 /** Guess a category from the title; falls back to the source default. */
 export function detectCategory(title: string, fallback: SourceCategory, icsCategories: string[] = []): Category {

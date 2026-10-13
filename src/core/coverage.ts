@@ -284,3 +284,39 @@ export function kidSegmentSummary(
     name: s.name?.trim() || "",
   }));
 }
+
+/**
+ * Carve `start`–`end` out of an event's coverage and make it one block with
+ * the given statuses and name ("Kiddy Park" as an activity on Saturday).
+ * Neighbouring blocks keep their statuses on the days outside the range, and
+ * kids not in `statuses` keep theirs. A
+ * block that matches the range exactly keeps its id, so its tasks stay with it.
+ */
+export function placeBlock(
+  event: Pick<FamilyEvent, "start" | "end" | "segments">,
+  start: ISODate,
+  end: ISODate,
+  statuses: Record<string, StatusKey>,
+  name: string,
+): { segments: Segment[]; id: string } {
+  const from = maxDate(start, event.start);
+  const to = minDate(end, event.end);
+  const segs = fitSegments(ensureSegments(event), event.start, event.end);
+  const exact = segs.find((s) => s.start === from && s.end === to);
+  // Kids left out keep what the first overlapping block said about them.
+  const before = segs.find((s) => s.end >= from && s.start <= to)?.statuses ?? {};
+  const block: Segment = { id: exact?.id ?? newId(), start: from, end: to, statuses: { ...before, ...statuses } };
+  if (name.trim()) block.name = name.trim();
+  const out: Segment[] = [];
+  for (const s of segs) {
+    if (s.end < from || s.start > to) {
+      out.push(s);
+      continue;
+    }
+    if (s.start < from) out.push({ ...s, end: addDays(from, -1) });
+    // The tail keeps the id unless the head already did.
+    if (s.end > to) out.push({ ...s, id: s.start < from ? newId() : s.id, start: addDays(to, 1) });
+  }
+  out.push(block);
+  return { segments: out.sort((a, b) => (a.start < b.start ? -1 : 1)), id: block.id };
+}
