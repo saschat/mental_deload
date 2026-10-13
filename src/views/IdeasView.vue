@@ -12,7 +12,6 @@ import {
   feedKey,
   findIdeas,
   SOURCE_SHORT_NAMES,
-  suggestedSetting,
   type Activity,
   type ActivityCategory,
   type ActivityDate,
@@ -47,17 +46,11 @@ function pick(t: IdeaTarget) {
 }
 
 const isWeekend = computed(() => target.value.kind === "weekend");
-const forecast = computed(() =>
-  isWeekend.value ? weather.forEvent({ category: "weekend", start: target.value.start, end: target.value.end }, data.today) : null,
-);
 
-// Filters. Nothing selected means no restriction.
-const suggested = computed(() => suggestedSetting(forecast.value?.rainProbability));
-const chosenSetting = ref<SettingFilter | null>(null);
-const setting = computed(() => chosenSetting.value ?? suggested.value);
-watch(target, () => (chosenSetting.value = null));
+// Filters start cleared; nothing selected means no restriction.
+const setting = ref<SettingFilter>("any");
 function toggleSetting(s: SettingFilter) {
-  chosenSetting.value = setting.value === s ? "any" : s;
+  setting.value = setting.value === s ? "any" : s;
 }
 
 const TRAVEL = [
@@ -65,7 +58,7 @@ const TRAVEL = [
   { label: "≤ 1 h", value: 60 },
   { label: "≤ 2 h", value: 120 },
 ] as const;
-const maxMinutes = ref<number | null>(60);
+const maxMinutes = ref<number | null>(null);
 
 const selectedCategories = ref<ActivityCategory[]>([]);
 const excludedSources = ref<ActivitySourceId[]>([]);
@@ -142,7 +135,7 @@ const filterSummary = computed(() => {
 });
 
 function clearFilters() {
-  chosenSetting.value = "any";
+  setting.value = "any";
   maxMinutes.value = null;
   selectedCategories.value = [];
   excludedSources.value = [];
@@ -155,14 +148,6 @@ watch(ideas, () => {
   placesShown.value = PAGE;
 });
 
-const settingReason = computed(() => {
-  const f = forecast.value;
-  if (!f || chosenSetting.value) return "";
-  const rain = `${Math.round(f.rainProbability)}% rain`;
-  if (suggested.value === "indoor") return `${rain}: showing indoor ideas`;
-  if (suggested.value === "outdoor") return `${rain}: showing outdoor ideas`;
-  return "";
-});
 
 // Typical weather at outdoor places for the target's dates.
 function typical(a: Activity): string | undefined {
@@ -205,7 +190,6 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
         <AppIcon name="chevron" class="down" />
       </button>
       <WeekendWeather v-if="isWeekend" :event="{ category: 'weekend', start: target.start, end: target.end }" />
-      <div v-if="settingReason" class="small muted">{{ settingReason }}</div>
 
       <button class="filters-toggle" :aria-expanded="filtersOpen" @click="filtersOpen = !filtersOpen">
         <span>Filters</span>

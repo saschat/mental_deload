@@ -10,7 +10,6 @@ import {
   monthsInRange,
   seasonLabel,
   sourceShown,
-  suggestedSetting,
   travelMinutes,
   weekendFrom,
   type Activity,
@@ -86,12 +85,6 @@ describe("travel and weather", () => {
     expect(travelMinutes(act({}))).toBeNull();
   });
 
-  it("suggests indoor when rain is likely and outdoor when dry", () => {
-    expect(suggestedSetting(80)).toBe("indoor");
-    expect(suggestedSetting(10)).toBe("outdoor");
-    expect(suggestedSetting(45)).toBe("any");
-    expect(suggestedSetting(null)).toBe("any");
-  });
 });
 
 describe("findIdeas", () => {

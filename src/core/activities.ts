@@ -196,17 +196,6 @@ export function matchesSetting(a: Activity, filter: SettingFilter): boolean {
   return a.setting === filter;
 }
 
-/** Rain chance at or above this suggests indoor ideas first. */
-export const RAINY_PERCENT = 60;
-/** Rain chance at or below this suggests outdoor ideas first. */
-export const DRY_PERCENT = 30;
-
-export function suggestedSetting(rainProbability: number | null | undefined): SettingFilter {
-  if (rainProbability === null || rainProbability === undefined) return "any";
-  if (rainProbability >= RAINY_PERCENT) return "indoor";
-  if (rainProbability <= DRY_PERCENT) return "outdoor";
-  return "any";
-}
 
 /** Settings key that switches off one feed of a source: "gz/gz-witikon". */
 export function feedKey(source: ActivitySourceId, feed: string): string {
