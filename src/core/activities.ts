@@ -7,6 +7,7 @@
  */
 import { addDays, weekday } from "./dates";
 import { categorize, type ActivityCategory } from "./categories";
+import type { CellClimate } from "./climate";
 export { distanceKm, ZURICH_HB } from "./geo";
 export { CATEGORIES, categorize, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
@@ -93,6 +94,8 @@ export interface ActivityIndex {
   v: 1;
   generatedAt: string;
   sources: ActivitySourceInfo[];
+  /** Typical weather per region for outdoor places (see climateCell). */
+  climate?: Record<string, CellClimate>;
   activities: Activity[];
 }
 
@@ -120,14 +123,13 @@ export const SOURCE_NAMES: Record<ActivitySourceId, string> = {
 };
 
 /**
- * Travel minutes from Zürich: the source's own transit or car time, else a
- * rough estimate from the straight-line distance (roads and changes add about
- * half again, plus getting to the station).
+ * Driving minutes from Zürich: the source's own car time, else an estimate
+ * from the straight-line distance (roads run about a third longer, at roughly
+ * 60 km/h overall, plus parking).
  */
 export function travelMinutes(a: Activity): { minutes: number; estimated: boolean } | null {
-  if (a.transitMin !== undefined) return { minutes: a.transitMin, estimated: false };
   if (a.carMin !== undefined) return { minutes: a.carMin, estimated: false };
-  if (a.distanceKm !== undefined) return { minutes: Math.round(15 + a.distanceKm * 1.4), estimated: true };
+  if (a.distanceKm !== undefined) return { minutes: Math.round(5 + a.distanceKm * 1.3), estimated: true };
   return null;
 }
 

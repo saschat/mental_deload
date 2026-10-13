@@ -159,16 +159,7 @@ describe("sportamt", () => {
       booking: "closed",
       tags: ["Unihockey"],
     });
-    const semester = sportamtActivity({
-      angebotId: 1,
-      titel: "Dance",
-      von: "2026-10-21T17:15:00",
-      bis: "2027-04-21T18:15:00",
-      kurstypId: 3,
-      wochentage: [3],
-      zeitpunkt3: "17.15–18.15 Uhr",
-    })!;
-    expect(semester.weekdays).toEqual([3]);
+    expect(sportamtActivity({ angebotId: 1, titel: "Dance", von: "2026-10-21T17:15:00", bis: "2027-04-21T18:15:00", kurstypId: 3 })).toBeNull();
     expect(sportamtActivity({ angebotId: 2, titel: "School course", von: "2026-08-17", bis: "2027-07-12", kurstypId: 1 })).toBeNull();
   });
 

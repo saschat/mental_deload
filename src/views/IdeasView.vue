@@ -11,6 +11,8 @@ import {
   CATEGORIES,
   feedKey,
   findIdeas,
+  monthsInRange,
+  seasonLabel,
   SOURCE_SHORT_NAMES,
   suggestedSetting,
   type Activity,
@@ -20,6 +22,7 @@ import {
   type Ideas,
   type SettingFilter,
 } from "@/core/activities";
+import { climateCell, typicalWeather } from "@/core/climate";
 import { formatDate } from "@/core/dates";
 import { ideaTargets, resolveTarget, type IdeaTarget } from "@/core/ideaTargets";
 import { useActivitiesStore } from "@/stores/activities";
@@ -72,7 +75,6 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 }
 
-const text = ref("");
 const filtersOpen = ref(false);
 
 /** Kids the target is for, matched by birth year. */
@@ -92,7 +94,6 @@ const allIdeas = computed(() =>
     setting: setting.value,
     maxMinutes: maxMinutes.value,
     birthYears: birthYears.value,
-    text: text.value,
     hiddenSources: hiddenSources.value,
   }),
 );
@@ -139,7 +140,6 @@ const filterSummary = computed(() => {
   if (cats.length === 1) parts.push(CATEGORIES.find((c) => c.id === cats[0])!.label.replace(/^\S+\s/, ""));
   else if (cats.length) parts.push(`${cats.length} categories`);
   if (excludedSources.value.length) parts.push(`${excludedSources.value.length} source${excludedSources.value.length === 1 ? "" : "s"} off`);
-  if (text.value.trim()) parts.push(`“${text.value.trim()}”`);
   return parts.join(" · ");
 });
 
@@ -148,16 +148,13 @@ function clearFilters() {
   maxMinutes.value = null;
   selectedCategories.value = [];
   excludedSources.value = [];
-  text.value = "";
 }
 
 const datedShown = ref(PAGE);
 const placesShown = ref(PAGE);
-const weeklyShown = ref(0);
 watch(ideas, () => {
   datedShown.value = PAGE;
   placesShown.value = PAGE;
-  weeklyShown.value = 0;
 });
 
 const settingReason = computed(() => {
@@ -168,6 +165,17 @@ const settingReason = computed(() => {
   if (suggested.value === "outdoor") return `${rain}: showing outdoor ideas`;
   return "";
 });
+
+// Typical weather at outdoor places for the target's months.
+const targetMonths = computed(() => monthsInRange(target.value.start, target.value.end));
+function typical(a: Activity): string | undefined {
+  if (a.setting !== "outdoor" || a.lat === undefined || a.lng === undefined) return undefined;
+  const climate = store.index?.climate?.[climateCell(a.lat, a.lng)];
+  const t = climate && typicalWeather(climate, targetMonths.value, a.altitudeM);
+  if (!t) return undefined;
+  const at = a.altitudeM !== undefined && a.altitudeM >= 800 ? ` at ${a.altitudeM} m` : "";
+  return `Typical ${seasonLabel(targetMonths.value)}: ${t.high}°${at} · ${t.rain}% rainy days`;
+}
 
 // Planning a place into the target.
 const targetEvent = computed(() => (target.value.eventId ? data.eventsById.get(target.value.eventId) : undefined));
@@ -186,9 +194,6 @@ const planned = computed(() => {
 const addTo = computed(() => (data.readOnly ? undefined : target.value.title));
 const adding = ref<{ activity: Activity; dates?: ActivityDate[] } | null>(null);
 
-const updated = computed(() =>
-  store.index ? new Date(store.index.generatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "",
-);
 </script>
 
 <template>
@@ -247,7 +252,6 @@ const updated = computed(() =>
             {{ SOURCE_SHORT_NAMES[s.id] }} <span class="count">{{ sourceCounts[s.id] ?? 0 }}</span>
           </button>
         </div>
-        <input v-model="text" class="input search" type="search" placeholder="Search: zoo, sledding, Witikon…" aria-label="Search ideas" />
         <button v-if="filterSummary" class="btn text clear" @click="clearFilters">Clear filters</button>
       </div>
     </div>
@@ -282,6 +286,7 @@ const updated = computed(() =>
           v-for="a in ideas.places.slice(0, placesShown)"
           :key="a.id"
           :activity="a"
+          :typical="typical(a)"
           :add-to="addTo"
           :planned="planned.get(a.title)"
           @add="adding = { activity: a }"
@@ -291,27 +296,11 @@ const updated = computed(() =>
         </button>
       </section>
 
-      <section v-if="ideas.weekly.length">
-        <h2>Weekly courses · {{ ideas.weekly.length }}</h2>
-        <p class="small muted weekly-note">Run every week for a semester and need a sign-up for all of it.</p>
-        <ActivityCard v-for="d in ideas.weekly.slice(0, weeklyShown)" :key="d.activity.id" :activity="d.activity" :dates="d.dates" />
-        <button v-if="ideas.weekly.length > weeklyShown" class="btn text more" @click="weeklyShown += PAGE">
-          {{ weeklyShown ? `Show more (${ideas.weekly.length - weeklyShown})` : "Show weekly courses" }}
-        </button>
-      </section>
-
-      <div v-if="!ideas.dated.length && !ideas.places.length && !ideas.weekly.length" class="empty">
+      <div v-if="!ideas.dated.length && !ideas.places.length" class="empty">
         <div class="big">🔍</div>
         <p>Nothing matches. Try fewer filters.</p>
       </div>
 
-      <p class="small muted footer">
-        Index from {{ updated }}:
-        <template v-for="(s, i) in store.index.sources" :key="s.id">
-          <a :href="s.url" target="_blank" rel="noopener noreferrer">{{ s.name }}</a> ({{ s.count }}<span v-if="s.error" title="Last update failed; showing older entries">, stale</span>)<template v-if="i < store.index.sources.length - 1">, </template>
-        </template>.
-        Details, prices and dates can change: check the source before you go.
-      </p>
     </template>
 
     <BottomSheet :open="picking" title="Plan ideas for" @close="picking = false">
@@ -415,10 +404,6 @@ const updated = computed(() =>
   font-weight: 400;
   opacity: 0.7;
 }
-.search {
-  margin-top: 8px;
-  width: 100%;
-}
 .clear {
   margin: 4px 0 0 auto;
   display: flex;
@@ -440,15 +425,8 @@ const updated = computed(() =>
   background: var(--primary-container);
   color: var(--on-primary-container);
 }
-.weekly-note {
-  margin: -4px 4px 8px;
-}
 .more {
   display: flex;
   margin: 0 auto 10px;
-}
-.footer {
-  margin-top: 24px;
-  text-align: center;
 }
 </style>

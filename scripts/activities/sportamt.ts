@@ -10,8 +10,12 @@ import { compactDates } from "./text.ts";
 const PORTAL = "https://www.stadt-zuerich.ch/sport-portal";
 const API = `${PORTAL}/API`;
 
-/** kurstyp in the search model. 1 (annual courses at single schools) is left out. */
-const COURSE_TYPES = { 2: "Holiday course", 3: "Semester course" } as const;
+/**
+ * kurstyp in the search model. Only holiday courses (2) are indexed: annual
+ * courses at single schools (1) and weekly semester courses (3) need a sign-up
+ * for months and do not fit a weekend or holiday.
+ */
+const COURSE_TYPES = { 2: "Holiday course" } as const;
 
 export interface SportamtCourse {
   angebotId: number;
@@ -23,8 +27,6 @@ export interface SportamtCourse {
   jahrgangBis?: number;
   aktivitaet?: string;
   kurstypId: number;
-  /** 1 = Monday … 7 = Sunday. */
-  wochentage?: number[];
   /** "9.00–13.30 Uhr". */
   zeitpunkt3?: string;
   /** "Nicht mehr buchbar", "Nachmelden bis 30.06.2027" … */
@@ -51,7 +53,6 @@ export function toActivity(c: SportamtCourse): Activity | null {
   if (!kind || !c.titel || !c.von) return null;
   const start = c.von.slice(0, 10);
   const end = (c.bis || c.von).slice(0, 10);
-  const weekdays = c.kurstypId === 3 ? (c.wochentage ?? []).map((d) => d % 7) : undefined;
   const years = c.jahrgangVon && c.jahrgangBis && c.jahrgangVon > 1900 && c.jahrgangBis < 2400;
   const closed = /nicht mehr buchbar|ausgebucht/i.test(c.status1 ?? "") || c.hatFreiePlaetze === false;
   const activity: Activity = {
@@ -65,7 +66,6 @@ export function toActivity(c: SportamtCourse): Activity | null {
     lng: c.anlageLaengengrad || undefined,
     birthYears: years ? [c.jahrgangVon!, c.jahrgangBis!] : undefined,
     dates: compactDates([{ start, end: end > start ? end : undefined, time: courseTime(c.zeitpunkt3) }]),
-    weekdays: weekdays?.length ? weekdays : undefined,
     booking: closed ? "closed" : "required",
     tags: [c.aktivitaet, c.niveau].filter((t): t is string => !!t),
   };

@@ -12,6 +12,8 @@ const props = defineProps<{
   addTo?: string;
   /** Days it is already planned on, e.g. "Sat 24 Oct". */
   planned?: string;
+  /** Typical weather there for the chosen dates, e.g. "Typical Oct: 9° at 2125 m · 35% rainy days". */
+  typical?: string;
 }>();
 const emit = defineEmits<{ add: [] }>();
 
@@ -24,12 +26,10 @@ function duration(minutes: number): string {
   return m ? `${h} h ${m}` : `${h} h`;
 }
 
+/** Driving time; "~" marks an estimate from the distance. */
 const travel = computed(() => {
-  const a = props.activity;
-  const t = travelMinutes(a);
-  if (!t) return "";
-  const how = a.transitMin !== undefined ? "🚆 " : a.carMin !== undefined ? "🚗 " : "~";
-  return `${how}${duration(t.minutes)}`;
+  const t = travelMinutes(props.activity);
+  return t ? `🚗 ${t.estimated ? "~" : ""}${duration(t.minutes)}` : "";
 });
 
 const meta = computed(() => [props.activity.kind, props.activity.place, travel.value].filter(Boolean).join(" · "));
@@ -86,6 +86,9 @@ const weekly = computed(() => {
     </div>
     <div class="small muted">{{ meta }}</div>
     <div v-if="hikeLine(activity)" class="small">{{ hikeLine(activity) }}</div>
+    <div v-if="typical" class="small muted" title="Average daytime high and share of days with rain, from ten years of weather history">
+      {{ typical }}
+    </div>
     <ul v-if="dates?.length" class="dates small">
       <li v-for="d in dates.slice(0, MAX_DATES)" :key="d.start + (d.time ?? '')">{{ dateText(d) }}<template v-if="weekly"> · {{ weekly }}</template></li>
       <li v-if="dates.length > MAX_DATES" class="muted">+{{ dates.length - MAX_DATES }} more dates</li>

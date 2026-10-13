@@ -2,6 +2,7 @@
 // incremental runs, geocoding, and a logger.
 
 import type { Activity, ActivitySourceId } from "../../src/core/activities.ts";
+import type { CellClimate } from "../../src/core/climate.ts";
 import type { Http } from "./http.ts";
 
 export interface PageState {
@@ -21,6 +22,8 @@ export interface CrawlState {
   geocode: Record<string, [number, number] | null>;
   /** "lat,lng" rounded to 4 decimals → metres. */
   elevation: Record<string, number>;
+  /** Climate region (see climateCell) → monthly normals. */
+  climate?: Record<string, CellClimate>;
 }
 
 export function emptyState(): CrawlState {

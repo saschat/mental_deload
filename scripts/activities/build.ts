@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 
 import type { Activity, ActivityIndex, ActivitySourceId, ActivitySourceInfo } from "../../src/core/activities.ts";
 import { categorize } from "../../src/core/categories.ts";
+import { climateFor } from "./climate.ts";
 import { emptyState, type Context, type CrawlState, type Source } from "./context.ts";
 import { familienausflug } from "./familienausflug.ts";
 import { ferienplausch } from "./ferienplausch.ts";
@@ -67,7 +68,13 @@ async function main() {
 
   const http = new Http({
     // robots.txt crawl delays.
-    delayMs: { "ferienplausch.feriennet.projuventute.ch": 10_000, "api3.geo.admin.ch": 250, "api.open-meteo.com": 250 },
+    delayMs: {
+      "ferienplausch.feriennet.projuventute.ch": 10_000,
+      "api3.geo.admin.ch": 250,
+      "api.open-meteo.com": 250,
+      // Ten years of history is a heavy request; space them out.
+      "archive-api.open-meteo.com": 3000,
+    },
     log,
   });
   const now = new Date();
@@ -114,7 +121,8 @@ async function main() {
     }
   }
 
-  const index: ActivityIndex = { v: 1, generatedAt: now.toISOString(), sources: infos, activities: final };
+  const climate = await climateFor(http, state, final, now, log);
+  const index: ActivityIndex = { v: 1, generatedAt: now.toISOString(), sources: infos, climate, activities: final };
   mkdirSync(outDir, { recursive: true });
   // One activity per line keeps the diff of a committed refresh readable.
   const lines = index.activities.map((a) => `    ${JSON.stringify(a)}`).join(",\n");

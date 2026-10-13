@@ -9,7 +9,7 @@ export const USER_AGENT = "mental-deload-activities (+https://github.com/saschat
 const BROWSER_USER_AGENT = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 ${USER_AGENT}`;
 const BROWSER_HOSTS = new Set(["swissfamilyfun.com", "www.swissfamilyfun.com"]);
 // Open-Meteo stalls requests whose user agent carries a "(+https://…)" link.
-const BARE_HOSTS = new Set(["api.open-meteo.com"]);
+const BARE_HOSTS = new Set(["api.open-meteo.com", "archive-api.open-meteo.com"]);
 
 function userAgentFor(host: string): string {
   if (BROWSER_HOSTS.has(host)) return BROWSER_USER_AGENT;

@@ -81,8 +81,8 @@ describe("ages", () => {
 
 describe("travel and weather", () => {
   it("prefers stated times and estimates from distance otherwise", () => {
-    expect(travelMinutes(act({ transitMin: 70, carMin: 50 }))).toEqual({ minutes: 70, estimated: false });
-    expect(travelMinutes(act({ distanceKm: 20 }))).toEqual({ minutes: 43, estimated: true });
+    expect(travelMinutes(act({ transitMin: 70, carMin: 50 }))).toEqual({ minutes: 50, estimated: false });
+    expect(travelMinutes(act({ transitMin: 70, distanceKm: 20 }))).toEqual({ minutes: 31, estimated: true });
     expect(travelMinutes(act({}))).toBeNull();
   });
 
@@ -96,10 +96,10 @@ describe("travel and weather", () => {
 
 describe("findIdeas", () => {
   const all: Activity[] = [
-    act({ title: "Near hike", setting: "outdoor", transitMin: 30, months: [5, 6, 7, 8, 9, 10] }),
-    act({ title: "Far hike", setting: "outdoor", transitMin: 150 }),
+    act({ title: "Near hike", setting: "outdoor", carMin: 30, months: [5, 6, 7, 8, 9, 10] }),
+    act({ title: "Far hike", setting: "outdoor", carMin: 150 }),
     act({ title: "Museum", kind: "Museum", setting: "indoor", distanceKm: 20 }),
-    act({ title: "Summer pool", setting: "outdoor", months: [6, 7, 8], transitMin: 20 }),
+    act({ title: "Summer pool", setting: "outdoor", months: [6, 7, 8], carMin: 20 }),
     act({ title: "Camp", source: "sportamt", kind: "Holiday course", dates: [{ start: "2026-10-17", end: "2026-10-18" }], birthYears: [2014, 2019] }),
     act({ title: "Toddler group", source: "gz", dates: [{ start: "2026-10-17" }], ageMax: 4 }),
     act({ title: "Past camp", source: "gz", dates: [{ start: "2026-10-05" }] }),
