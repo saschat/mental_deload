@@ -219,6 +219,10 @@ export interface IdeaQuery {
   text?: string;
   /** Sources and feeds switched off in Settings (see sourceShown). */
   hiddenSources?: readonly string[];
+  /** Activity ids marked as favourites: listed first. */
+  favorites?: ReadonlySet<string>;
+  /** Activity ids marked as not relevant: left out. */
+  hidden?: ReadonlySet<string>;
 }
 
 function matchesText(a: Activity, text: string | undefined): boolean {
@@ -248,11 +252,11 @@ export interface DatedIdea {
 }
 
 export interface Ideas {
-  /** Camps, events and one-off courses with a date in the range: those within it first, then soonest; full ones last. */
+  /** Camps, events and one-off courses with a date in the range: favourites first, then those within it, then soonest; full ones last. */
   dated: DatedIdea[];
   /** Courses that run weekly over months (semester courses), same order. */
   weekly: DatedIdea[];
-  /** Places to go any time in season: seasonal ones first, then closest first. */
+  /** Places to go any time in season: favourites, then seasonal ones, then closest first. */
   places: Activity[];
 }
 
@@ -262,7 +266,7 @@ export function findIdeas(activities: readonly Activity[], q: IdeaQuery): Ideas 
   const places: Activity[] = [];
   const hidden = new Set(q.hiddenSources ?? []);
   for (const a of activities) {
-    if (!sourceShown(a, hidden) || !matchesCommon(a, q)) continue;
+    if (q.hidden?.has(a.id) || !sourceShown(a, hidden) || !matchesCommon(a, q)) continue;
     if (a.dates) {
       const dates = datesInRange(a, q.start, q.end);
       if (dates.length) (a.weekdays?.length ? weekly : dated).push({ activity: a, dates });
@@ -273,7 +277,9 @@ export function findIdeas(activities: readonly Activity[], q: IdeaQuery): Ideas 
   // Offers that happen within the dates (a Saturday event, a camp week) rank
   // above long runs that merely overlap them.
   const within = (d: DatedIdea) => Number(d.dates.some((x) => x.start >= q.start && (x.end ?? x.start) <= q.end));
+  const favorite = (a: Activity) => Number(!!q.favorites?.has(a.id));
   const byDate = (x: DatedIdea, y: DatedIdea) =>
+    favorite(y.activity) - favorite(x.activity) ||
     Number(x.activity.booking === "closed") - Number(y.activity.booking === "closed") ||
     within(y) - within(x) ||
     x.dates[0].start.localeCompare(y.dates[0].start) ||
@@ -284,7 +290,7 @@ export function findIdeas(activities: readonly Activity[], q: IdeaQuery): Ideas 
   // Places with a season that includes the dates (sledding in winter, a pool
   // in summer) suit those dates better than places that are always open.
   const seasonal = (a: Activity) => Number(!!a.months?.length && a.months.length < 12);
-  places.sort((x, y) => seasonal(y) - seasonal(x) || minutes(x) - minutes(y) || x.title.localeCompare(y.title));
+  places.sort((x, y) => favorite(y) - favorite(x) || seasonal(y) - seasonal(x) || minutes(x) - minutes(y) || x.title.localeCompare(y.title));
   return { dated, weekly, places };
 }
 

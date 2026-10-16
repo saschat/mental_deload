@@ -10,7 +10,7 @@ import { parseIcs } from "@/core/icsParse";
 import { planImport, stripUndefined, summarize, type ImportPlan, type ImportSummary } from "@/core/importDiff";
 import { planWeekends } from "@/core/weekends";
 import { planSegmentTasks, withDescendants, type SegmentTaskPlan } from "@/core/tasks";
-import type { FamilyEvent, Kid, Segment, Settings, Source, Task } from "@/core/types";
+import type { FamilyEvent, IdeaMark, Kid, Segment, Settings, Source, Task } from "@/core/types";
 import { fetchIcs } from "@/lib/fetchIcs";
 import { idbClear, idbGet, idbSet, SNAPSHOT_KEY, type Snapshot } from "@/lib/idb";
 
@@ -47,6 +47,7 @@ export const useDataStore = defineStore("data", () => {
   const events: Ref<FamilyEvent[]> = ref([]);
   const tasks: Ref<Task[]> = ref([]);
   const settingsDocs: Ref<Settings[]> = ref([]);
+  const ideaMarks: Ref<IdeaMark[]> = ref([]);
 
   const live = ref(false);
   const connecting = ref(false);
@@ -69,6 +70,7 @@ export const useDataStore = defineStore("data", () => {
     events: bzr.collection<FamilyEvent>("events"),
     tasks: bzr.collection<Task>("tasks"),
     settings: bzr.collection<Settings>("settings"),
+    ideaMarks: bzr.collection<IdeaMark>("ideaMarks"),
   };
 
   //
@@ -87,6 +89,8 @@ export const useDataStore = defineStore("data", () => {
   );
   const undecidedEvents = computed(() => upcomingEvents.value.filter((e) => isUndecided(e, kids.value)));
   const flaggedEvents = computed(() => events.value.filter((e) => e.upstreamFlag));
+  /** Favourite or not relevant, by activity id. */
+  const ideaMarksByActivity = computed(() => new Map(ideaMarks.value.map((m) => [m.activityId, m])));
   const openTasks = computed(() => tasks.value.filter((t) => !t.done && eventsById.value.has(t.eventId)));
 
   function relevantKids(ev: Pick<FamilyEvent, "kidIds">): Kid[] {
@@ -105,6 +109,7 @@ export const useDataStore = defineStore("data", () => {
       events.value = snap.events ?? [];
       tasks.value = snap.tasks ?? [];
       settingsDocs.value = snap.settings ? [snap.settings] : [];
+      ideaMarks.value = snap.ideaMarks ?? [];
       cacheSavedAt.value = snap.savedAt;
       fromCache.value = true;
       loading.value = false;
@@ -122,13 +127,14 @@ export const useDataStore = defineStore("data", () => {
         events: events.value,
         tasks: tasks.value,
         settings: settingsDocs.value.find((s) => s.id === SETTINGS_ID) ?? null,
+        ideaMarks: ideaMarks.value,
         savedAt: new Date().toISOString(),
       });
       cacheSavedAt.value = snap.savedAt;
       idbSet(SNAPSHOT_KEY, snap).catch((e) => console.warn("Could not cache data", e));
     }, 400);
   }
-  watch([kids, sources, events, tasks, settingsDocs], scheduleSave, { deep: true });
+  watch([kids, sources, events, tasks, settingsDocs, ideaMarks], scheduleSave, { deep: true });
 
   /** Write the snapshot right away (e.g. before a reminder check). */
   async function flushCache() {
@@ -189,6 +195,7 @@ export const useDataStore = defineStore("data", () => {
           mirror(col.events, events),
           mirror(col.tasks, tasks),
           mirror(col.settings, settingsDocs),
+          mirror(col.ideaMarks, ideaMarks),
         ]);
       } catch (e) {
         await stop();
@@ -265,6 +272,20 @@ export const useDataStore = defineStore("data", () => {
     const doc = clone({ ...s, id: SETTINGS_ID });
     if (settingsDocs.value.some((d) => d.id === SETTINGS_ID)) await write(col.settings.replaceOne(SETTINGS_ID, doc));
     else await write(col.settings.insertOne(doc));
+  }
+
+  // Idea marks
+  /** Mark an idea as a favourite or not relevant; null removes the mark. */
+  async function setIdeaMark(activity: { id: string; title: string }, mark: IdeaMark["mark"] | null) {
+    guard();
+    const existing = ideaMarksByActivity.value.get(activity.id);
+    if (!mark) {
+      if (existing) await write(col.ideaMarks.deleteOne(existing.id));
+      return;
+    }
+    const doc: IdeaMark = { id: existing?.id ?? newId(), activityId: activity.id, mark, title: activity.title, updatedAt: nowIso() };
+    if (existing) await write(col.ideaMarks.replaceOne(existing.id, doc));
+    else await write(col.ideaMarks.insertOne(doc));
   }
 
   // Events
@@ -454,6 +475,8 @@ export const useDataStore = defineStore("data", () => {
     events,
     tasks,
     settings,
+    ideaMarks,
+    ideaMarksByActivity,
     live,
     connecting,
     loading,
@@ -483,6 +506,7 @@ export const useDataStore = defineStore("data", () => {
     saveKid,
     deleteKid,
     saveSettings,
+    setIdeaMark,
     saveEvent,
     newManualEvent,
     deleteEvent,

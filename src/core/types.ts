@@ -107,6 +107,17 @@ export interface Task {
   generated?: boolean;
 }
 
+/** A favourite or not-relevant mark on an idea from the activity index. */
+export interface IdeaMark {
+  id: string;
+  /** Activity id in activities.json ("gz:…"); the index ids contain characters doc ids should not. */
+  activityId: string;
+  mark: "favorite" | "hidden";
+  /** Kept so a mark stays readable after the activity leaves the index. */
+  title: string;
+  updatedAt: string;
+}
+
 export interface TemplateNode {
   id: string;
   title: string;

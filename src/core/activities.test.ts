@@ -116,6 +116,17 @@ describe("findIdeas", () => {
     expect(findIdeas(all, { ...base, birthYears: [2023] }).dated.map((d) => d.activity.title)).toEqual(["Toddler group", "Full camp"]);
     expect(findIdeas(all, { ...base, text: "museum" }).places.map((a) => a.title)).toEqual(["Museum"]);
   });
+
+  it("lists favourites first and leaves out ideas marked not relevant", () => {
+    const id = (title: string) => all.find((a) => a.title === title)!.id;
+    const ideas = findIdeas(all, {
+      ...base,
+      favorites: new Set([id("Far hike"), id("Toddler group")]),
+      hidden: new Set([id("Museum"), id("Camp")]),
+    });
+    expect(ideas.places.map((a) => a.title)).toEqual(["Far hike", "Near hike"]);
+    expect(ideas.dated.map((d) => d.activity.title)).toEqual(["Toddler group", "Full camp"]);
+  });
 });
 
 describe("source settings", () => {

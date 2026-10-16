@@ -2,7 +2,7 @@
  * Minimal IndexedDB key/value store shared by the page and the service worker
  * (the service worker cannot read localStorage).
  */
-import type { FamilyEvent, Kid, Settings, Source, Task } from "../core/types";
+import type { FamilyEvent, IdeaMark, Kid, Settings, Source, Task } from "../core/types";
 
 const DB_NAME = "mental-deload";
 const STORE = "kv";
@@ -13,6 +13,8 @@ export interface Snapshot {
   events: FamilyEvent[];
   tasks: Task[];
   settings: Settings | null;
+  /** Missing in snapshots from before idea marks existed. */
+  ideaMarks?: IdeaMark[];
   savedAt: string;
 }
 

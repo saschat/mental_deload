@@ -24,11 +24,13 @@ import { formatDate } from "@/core/dates";
 import { ideaTargets, resolveTarget, type IdeaTarget } from "@/core/ideaTargets";
 import { useActivitiesStore } from "@/stores/activities";
 import { useDataStore } from "@/stores/data";
+import { useUiStore } from "@/stores/ui";
 import { useWeatherStore } from "@/stores/weather";
 
 const route = useRoute();
 const router = useRouter();
 const data = useDataStore();
+const ui = useUiStore();
 const store = useActivitiesStore();
 const weather = useWeatherStore();
 store.ensure();
@@ -78,6 +80,20 @@ const birthYears = computed(() => {
 
 const hiddenSources = computed(() => data.settings.hiddenIdeaSources);
 
+/** Favourite and not-relevant marks, as activity id sets for findIdeas. */
+const favoriteIds = computed(() => new Set(data.ideaMarks.filter((m) => m.mark === "favorite").map((m) => m.activityId)));
+const hiddenIds = computed(() => new Set(data.ideaMarks.filter((m) => m.mark === "hidden").map((m) => m.activityId)));
+const hiddenMarks = computed(() => data.ideaMarks.filter((m) => m.mark === "hidden").sort((a, b) => a.title.localeCompare(b.title)));
+const showHidden = ref(false);
+
+function markOf(a: Activity) {
+  return data.ideaMarksByActivity.get(a.id)?.mark;
+}
+
+function setMark(a: { id: string; title: string }, mark: "favorite" | "hidden" | null) {
+  ui.run(() => data.setIdeaMark(a, mark), mark === "hidden" ? `Hid ${a.title}` : undefined);
+}
+
 /** Matches from every source enabled in Settings, before the category and source chips. */
 const allIdeas = computed(() =>
   findIdeas(store.activities, {
@@ -87,6 +103,8 @@ const allIdeas = computed(() =>
     maxMinutes: maxMinutes.value,
     birthYears: birthYears.value,
     hiddenSources: hiddenSources.value,
+    favorites: favoriteIds.value,
+    hidden: hiddenIds.value,
   }),
 );
 
@@ -276,7 +294,10 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           :dates="d.dates"
           :add-to="addTo"
           :planned="planned.get(d.activity.title)"
+          :mark="markOf(d.activity)"
+          :markable="!data.readOnly"
           @add="adding = { activity: d.activity, dates: d.dates }"
+          @mark="(m) => setMark(d.activity, m)"
         />
         <button v-if="ideas.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
           Show more ({{ ideas.dated.length - datedShown }})
@@ -292,7 +313,10 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           :typical="typical(a)"
           :add-to="addTo"
           :planned="planned.get(a.title)"
+          :mark="markOf(a)"
+          :markable="!data.readOnly"
           @add="adding = { activity: a }"
+          @mark="(m) => setMark(a, m)"
         />
         <button v-if="ideas.places.length > placesShown" class="btn text more" @click="placesShown += PAGE">
           Show more ({{ ideas.places.length - placesShown }})
@@ -303,6 +327,19 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
         <div class="big">🔍</div>
         <p>Nothing matches. Try fewer filters.</p>
       </div>
+
+      <section v-if="hiddenMarks.length" class="hidden-ideas">
+        <button class="btn text more" :aria-expanded="showHidden" @click="showHidden = !showHidden">
+          Not relevant · {{ hiddenMarks.length }}
+          <AppIcon name="chevron" :size="18" class="chev" :class="{ up: showHidden }" />
+        </button>
+        <div v-if="showHidden" class="card">
+          <div v-for="m in hiddenMarks" :key="m.id" class="row hidden-row">
+            <span class="spacer">{{ m.title }}</span>
+            <button class="btn text" :disabled="data.readOnly" @click="setMark({ id: m.activityId, title: m.title }, null)">Show again</button>
+          </div>
+        </div>
+      </section>
 
     </template>
 
@@ -450,6 +487,16 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
 .target-row.selected {
   background: var(--primary-container);
   color: var(--on-primary-container);
+}
+.hidden-ideas .chev.up {
+  transform: rotate(-90deg);
+}
+.hidden-row {
+  align-items: center;
+  gap: 8px;
+}
+.hidden-row + .hidden-row {
+  border-top: 1px solid var(--outline);
 }
 .more {
   display: flex;

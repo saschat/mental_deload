@@ -14,8 +14,11 @@ const props = defineProps<{
   planned?: string;
   /** Typical weather there for the chosen dates, e.g. "Typically 9° at 2125 m · 35% rainy days". */
   typical?: string;
+  /** The user's mark; the star and hide buttons only show when `markable`. */
+  mark?: "favorite" | "hidden";
+  markable?: boolean;
 }>();
-const emit = defineEmits<{ add: [] }>();
+const emit = defineEmits<{ add: []; mark: ["favorite" | "hidden" | null] }>();
 
 const MAX_DATES = 3;
 
@@ -71,6 +74,17 @@ const weekly = computed(() => {
       <span v-if="activity.booking === 'closed'" class="tag warn">Full</span>
       <span class="spacer" />
       <button
+        v-if="markable && mark !== 'hidden'"
+        class="icon-btn star"
+        :class="{ on: mark === 'favorite' }"
+        :title="mark === 'favorite' ? 'Remove from favourites' : 'Add to favourites'"
+        :aria-label="mark === 'favorite' ? 'Remove from favourites' : 'Add to favourites'"
+        :aria-pressed="mark === 'favorite'"
+        @click="emit('mark', mark === 'favorite' ? null : 'favorite')"
+      >
+        <AppIcon :name="mark === 'favorite' ? 'star' : 'starOutline'" :size="20" />
+      </button>
+      <button
         v-if="addTo"
         class="icon-btn add"
         :class="{ done: planned }"
@@ -97,7 +111,13 @@ const weekly = computed(() => {
       <span v-if="planned" class="tag ok">Planned · {{ planned }}</span>
       <span v-for="f in facts" :key="f" class="tag">{{ f }}</span>
     </div>
-    <div class="source small muted">{{ SOURCE_NAMES[activity.source] }}</div>
+    <div class="row foot">
+      <span class="source small muted">{{ SOURCE_NAMES[activity.source] }}</span>
+      <span class="spacer" />
+      <button v-if="markable" class="hide small" @click="emit('mark', mark === 'hidden' ? null : 'hidden')">
+        {{ mark === "hidden" ? "Show again" : "Not relevant" }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -144,8 +164,27 @@ const weekly = computed(() => {
   gap: 4px;
   margin-top: 4px;
 }
+.head .star.on {
+  color: var(--yellow);
+}
+.foot {
+  align-items: center;
+  margin-top: 2px;
+}
 .source {
   font-size: 11px;
-  margin-top: 2px;
+}
+.hide {
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.hide:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 </style>
