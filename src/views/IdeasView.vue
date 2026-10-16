@@ -66,7 +66,8 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 }
 
-const filtersOpen = ref(false);
+/** The filter tab whose chips are showing; null when all are closed. */
+const openFilter = ref<FilterGroup | null>(null);
 
 /** Kids the target is for, matched by birth year. */
 const birthYears = computed(() => {
@@ -122,23 +123,31 @@ const sourceChips = computed(() =>
   }),
 );
 
-const filterSummary = computed(() => {
-  const parts: string[] = [];
-  if (setting.value !== "any") parts.push(setting.value === "indoor" ? "Indoor" : "Outdoor");
-  const travel = TRAVEL.find((t) => t.value === maxMinutes.value);
-  if (travel) parts.push(travel.label);
-  const cats = selectedCategories.value;
-  if (cats.length === 1) parts.push(CATEGORIES.find((c) => c.id === cats[0])!.label.replace(/^\S+\s/, ""));
-  else if (cats.length) parts.push(`${cats.length} categories`);
-  if (excludedSources.value.length) parts.push(`${excludedSources.value.length} source${excludedSources.value.length === 1 ? "" : "s"} off`);
-  return parts.join(" · ");
-});
+type FilterGroup = "general" | "type" | "source";
 
-function clearFilters() {
-  setting.value = "any";
-  maxMinutes.value = null;
-  selectedCategories.value = [];
-  excludedSources.value = [];
+/** How many filters each tab has set, shown as a badge so a closed tab still tells. */
+const activeCounts = computed<Record<FilterGroup, number>>(() => ({
+  general: Number(setting.value !== "any") + Number(maxMinutes.value !== null),
+  type: selectedCategories.value.length,
+  source: excludedSources.value.length,
+}));
+
+const filterTabs = computed(() =>
+  (
+    [
+      { id: "general", label: "General" },
+      { id: "type", label: "Type" },
+      { id: "source", label: "Source" },
+    ] as const
+  ).filter((t) => t.id !== "source" || sourceChips.value.length > 1),
+);
+
+function clearGroup(group: FilterGroup) {
+  if (group === "general") {
+    setting.value = "any";
+    maxMinutes.value = null;
+  } else if (group === "type") selectedCategories.value = [];
+  else excludedSources.value = [];
 }
 
 const datedShown = ref(PAGE);
@@ -191,28 +200,40 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
       </button>
       <WeekendWeather v-if="isWeekend" :event="{ category: 'weekend', start: target.start, end: target.end }" />
 
-      <button class="filters-toggle" :aria-expanded="filtersOpen" @click="filtersOpen = !filtersOpen">
-        <span>Filters</span>
-        <span class="small muted summary">{{ filterSummary }}</span>
-        <AppIcon name="chevron" :size="20" class="chev" :class="{ open: filtersOpen }" />
-      </button>
-      <div v-show="filtersOpen" class="filter-body">
-        <div class="chips wrap">
-          <button class="chip" :class="{ selected: setting === 'outdoor' }" @click="toggleSetting('outdoor')">Outdoor</button>
-          <button class="chip" :class="{ selected: setting === 'indoor' }" @click="toggleSetting('indoor')">Indoor</button>
-        </div>
-        <div class="chips wrap">
-          <button
-            v-for="t in TRAVEL"
-            :key="t.label"
-            class="chip"
-            :class="{ selected: maxMinutes === t.value }"
-            @click="maxMinutes = maxMinutes === t.value ? null : t.value"
-          >
-            {{ t.label }}
-          </button>
-        </div>
-        <div class="chips wrap">
+      <div class="filter-tabs" role="tablist">
+        <button
+          v-for="t in filterTabs"
+          :key="t.id"
+          class="filter-tab"
+          role="tab"
+          :aria-selected="openFilter === t.id"
+          :class="{ open: openFilter === t.id, active: activeCounts[t.id] > 0 }"
+          @click="openFilter = openFilter === t.id ? null : t.id"
+        >
+          <span>{{ t.label }}</span>
+          <span v-if="activeCounts[t.id]" class="badge">{{ activeCounts[t.id] }}</span>
+          <AppIcon name="chevron" :size="16" class="chev" />
+        </button>
+      </div>
+      <div v-if="openFilter" class="filter-body" role="tabpanel">
+        <template v-if="openFilter === 'general'">
+          <div class="chips wrap">
+            <button class="chip" :class="{ selected: setting === 'outdoor' }" @click="toggleSetting('outdoor')">Outdoor</button>
+            <button class="chip" :class="{ selected: setting === 'indoor' }" @click="toggleSetting('indoor')">Indoor</button>
+          </div>
+          <div class="chips wrap">
+            <button
+              v-for="t in TRAVEL"
+              :key="t.label"
+              class="chip"
+              :class="{ selected: maxMinutes === t.value }"
+              @click="maxMinutes = maxMinutes === t.value ? null : t.value"
+            >
+              {{ t.label }}
+            </button>
+          </div>
+        </template>
+        <div v-else-if="openFilter === 'type'" class="chips wrap">
           <button
             v-for="c in categoryChips"
             :key="c.id"
@@ -223,7 +244,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
             {{ c.label }} <span class="count">{{ categoryCounts[c.id] ?? 0 }}</span>
           </button>
         </div>
-        <div v-if="sourceChips.length > 1" class="chips wrap">
+        <div v-else class="chips wrap">
           <button
             v-for="s in sourceChips"
             :key="s.id"
@@ -234,7 +255,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
             {{ SOURCE_SHORT_NAMES[s.id] }} <span class="count">{{ sourceCounts[s.id] ?? 0 }}</span>
           </button>
         </div>
-        <button v-if="filterSummary" class="btn text clear" @click="clearFilters">Clear filters</button>
+        <button v-if="activeCounts[openFilter]" class="btn text clear" @click="clearGroup(openFilter)">Clear</button>
       </div>
     </div>
 
@@ -333,7 +354,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
   font-size: 13px;
 }
 .target,
-.filters-toggle,
+.filter-tab,
 .target-row {
   display: flex;
   align-items: center;
@@ -360,26 +381,43 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
   transform: rotate(90deg);
   color: var(--text-2);
 }
-.filters-toggle {
+.filter-tabs {
+  display: flex;
   margin-top: 10px;
-  padding-top: 10px;
   border-top: 1px solid var(--outline);
-  font-weight: 500;
 }
-.summary {
+.filter-tab {
   flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 400;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 0 6px;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.filter-tab.active {
+  color: var(--text);
+}
+.filter-tab.open {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
 }
 .chev {
   transform: rotate(90deg);
   transition: transform 0.15s;
-  color: var(--text-2);
 }
-.chev.open {
+.filter-tab.open .chev {
   transform: rotate(-90deg);
 }
 .filter-body {
