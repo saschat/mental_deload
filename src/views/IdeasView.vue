@@ -147,7 +147,13 @@ type FilterGroup = "general" | "type" | "source";
 const activeCounts = computed<Record<FilterGroup, number>>(() => ({
   general: Number(setting.value !== "any") + Number(maxMinutes.value !== null),
   type: selectedCategories.value.length,
-  source: excludedSources.value.length,
+  source: sourceChips.value.filter((c) => excludedSources.value.includes(c.id)).length,
+}));
+
+/** Badge per tab: filters set, except Source, which counts the sources still shown. */
+const badges = computed<Record<FilterGroup, number>>(() => ({
+  ...activeCounts.value,
+  source: sourceChips.value.length - activeCounts.value.source,
 }));
 
 const filterTabs = computed(() =>
@@ -229,7 +235,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           @click="openFilter = openFilter === t.id ? null : t.id"
         >
           <span>{{ t.label }}</span>
-          <span v-if="activeCounts[t.id]" class="badge">{{ activeCounts[t.id] }}</span>
+          <span v-if="t.id === 'source' || badges[t.id]" class="badge">{{ badges[t.id] }}</span>
           <AppIcon name="chevron" :size="16" class="chev" />
         </button>
       </div>
