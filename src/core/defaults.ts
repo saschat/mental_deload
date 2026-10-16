@@ -109,6 +109,7 @@ export function defaultTemplates(): TaskTemplate[] {
       nodes: [
         node("Book accommodation", -120),
         node("Book travel", -90),
+        node("Book car rental", -60),
         node("Pack", -2),
       ],
     },
@@ -166,7 +167,35 @@ export function defaultSettings(): Settings {
     taskDueSoonDays: 3,
     corsProxy: "",
     hiddenIdeaSources: [],
+    templatesRev: TEMPLATES_REV,
   };
+}
+
+/** Bumped when a default template gains a task that stored templates should get too. */
+export const TEMPLATES_REV = 1;
+
+/** Tasks added to default templates since `templatesRev` 0, and where they go. */
+const TEMPLATE_ADDITIONS: { rev: number; status: StatusKey; title: string; offsetDays: number; after: string; matches: RegExp }[] = [
+  { rev: 1, status: "vacation", title: "Book car rental", offsetDays: -60, after: "Book travel", matches: /car rental|rental car|mietauto|mietwagen/i },
+];
+
+/** Adds new default tasks to stored templates once, so deleting one later sticks. */
+function upgradeTemplates(templates: TaskTemplate[], rev: number): TaskTemplate[] {
+  let out = templates;
+  for (const add of TEMPLATE_ADDITIONS) {
+    if (add.rev <= rev) continue;
+    out = out.map((t) => {
+      if (t.status !== add.status) return t;
+      const has = (nodes: TemplateNode[]): boolean => nodes.some((n) => add.matches.test(n.title) || has(n.children ?? []));
+      if (has(t.nodes)) return t;
+      const node: TemplateNode = { id: `${t.id}-rev${add.rev}`, title: add.title, offsetDays: add.offsetDays, children: [] };
+      const at = t.nodes.findIndex((n) => n.title === add.after);
+      const nodes = [...t.nodes];
+      nodes.splice(at === -1 ? nodes.length : at + 1, 0, node);
+      return { ...t, nodes };
+    });
+  }
+  return out;
 }
 
 /** Fill in fields missing from older stored settings docs. */
@@ -177,7 +206,8 @@ export function normalizeSettings(s: Partial<Settings> | null | undefined): Sett
     ...d,
     ...s,
     statusColors: { ...d.statusColors, ...(s.statusColors ?? {}) },
-    templates: s.templates ?? d.templates,
+    templates: s.templates ? upgradeTemplates(s.templates, s.templatesRev ?? 0) : d.templates,
+    templatesRev: TEMPLATES_REV,
     reminderTiers: { ...d.reminderTiers, ...(s.reminderTiers ?? {}) },
   };
 }

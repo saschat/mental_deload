@@ -9,7 +9,7 @@ import { addDays, weekday } from "./dates";
 import { categorize, type ActivityCategory } from "./categories";
 import type { CellClimate } from "./climate";
 export { distanceKm, ZURICH_HB } from "./geo";
-export { CATEGORIES, categorize, type ActivityCategory } from "./categories";
+export { CATEGORIES, categorize, settingFromText, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
 
 export type ActivitySourceId = "swissfamilyfun" | "familienausflug" | "osm" | "gz" | "sportamt" | "ferienplausch";

@@ -54,6 +54,7 @@ function classify(tags: Record<string, string>): { kind: string; setting: Settin
     return indoor ? { kind: "Ice skating", setting: "indoor" } : { kind: "Ice skating", setting: "outdoor", months: ICE };
   }
   if (tags.leisure === "water_park" || tags.sport === "swimming") {
+    if (/hallen-? ?und (frei|see|strand)bad|frei- und hallenbad/i.test(name)) return { kind: "Pool", setting: "mixed" };
     if (/hallenbad|hallen-|thermal|therme|alpamare|wellness/i.test(name) || indoor) return { kind: "Indoor pool", setting: "indoor" };
     if (/freibad|strandbad|seebad|badi|flussbad|schwimmbad|badesee|badeplatz|badestelle|weiher|rheinbad|freiluft/i.test(name)) return { kind: "Outdoor pool", setting: "outdoor", months: SUMMER };
     return { kind: "Pool", setting: "mixed" };

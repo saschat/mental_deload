@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ageLabel,
   categorize,
+  settingFromText,
   datesInRange,
   findIdeas,
   fitsBirthYear,
@@ -164,5 +165,33 @@ describe("categorize", () => {
     [{ ...base, source: "sportamt" as const, kind: "Semester course", title: "Wasserspringen", tags: ["Wasserspringen"] }, "swim"],
   ])("%o → %s", (a, category) => {
     expect(categorize(a)).toBe(category);
+  });
+});
+
+describe("settingFromText", () => {
+  const fa = { source: "familienausflug" as const, title: "", kind: "Outing", setting: "mixed" as const };
+  it.each([
+    [{ ...fa, kind: "Museum", title: "Museum Rietberg" }, "indoor"],
+    [{ ...fa, kind: "Indoor play", title: "Ticiland Freizeitpark" }, "indoor"],
+    [{ ...fa, kind: "Escape room", title: "Detektiv-Trail Winterthur" }, "outdoor"],
+    [{ ...fa, kind: "Theme park", title: "Zoo Zürich" }, "outdoor"],
+    [{ ...fa, kind: "Museum", title: "Schloss Wildegg" }, "mixed"],
+    [{ ...fa, kind: "Swimming", title: "Ägeribad" }, "mixed"],
+    [{ ...fa, kind: "Museum", title: "Zoologisches Museum" }, "indoor"],
+    [{ source: "gz" as const, kind: "Crafts", title: "Räben schnitzen" }, "indoor"],
+    [{ source: "gz" as const, kind: "Event", title: "Räbeliechtli-Umzug" }, "outdoor"],
+    [{ source: "gz" as const, kind: "Offer", title: "Skills4All Workshop" }, "indoor"],
+    [{ source: "gz" as const, kind: "Market", title: "Kinderflohmarkt" }, "mixed"],
+    [{ source: "gz" as const, kind: "Offer", title: "Morgenfütterung", tags: ["tiere-natur"] }, "outdoor"],
+    [{ source: "sportamt" as const, kind: "Holiday course", title: "Tischtennis-Camp" }, "indoor"],
+    [{ source: "sportamt" as const, kind: "Holiday course", title: "Impro -Theater im Garten" }, "outdoor"],
+    [{ source: "sportamt" as const, kind: "Holiday course", title: "Fussball-Camp Indoor" }, "indoor"],
+    [{ source: "swissfamilyfun" as const, kind: "Museum", title: "Kyburg Castle", setting: "indoor" as const }, "indoor"],
+  ])("%o → %s", (a, setting) => {
+    expect(settingFromText(a)).toBe(setting);
+  });
+
+  it("leaves unknown entries open and ignores values from earlier runs", () => {
+    expect(settingFromText({ source: "gz", kind: "Offer", title: "Unser Quartier im Blick", setting: "outdoor" })).toBeUndefined();
   });
 });

@@ -217,6 +217,7 @@ describe("osm", () => {
       url: "https://www.openstreetmap.org/way/2",
     });
     expect(osmActivity({ type: "way", id: 3, center: { lat: 47.4, lon: 8.5 }, tags: { leisure: "water_park", name: "Hallenbad Urdorf" } })?.setting).toBe("indoor");
+    expect(osmActivity({ type: "way", id: 5, center: { lat: 47.4, lon: 8.5 }, tags: { leisure: "sports_centre", sport: "swimming", name: "Hallen- und Freibad Juch" } })?.setting).toBe("mixed");
     expect(osmActivity({ type: "node", id: 4, lat: 47.4, lon: 8.5, tags: { leisure: "indoor_play" } })).toBeNull();
     expect(osmActivity({ type: "way", id: 5, center: { lat: 47.4, lon: 8.5 }, tags: { leisure: "sports_centre", sport: "swimming", name: "Schulschwimmanlage Borrweg" } })).toBeNull();
     expect(osmActivity({ type: "way", id: 6, center: { lat: 47.4, lon: 8.5 }, tags: { leisure: "water_park", name: "Badesee Husemersee" } })?.setting).toBe("outdoor");

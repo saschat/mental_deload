@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { Activity, ActivityIndex, ActivitySourceId, ActivitySourceInfo } from "../../src/core/activities.ts";
-import { categorize } from "../../src/core/categories.ts";
+import { categorize, settingFromText } from "../../src/core/categories.ts";
 import { climateFor } from "./climate.ts";
 import { emptyState, type Context, type CrawlState, type Source } from "./context.ts";
 import { familienausflug } from "./familienausflug.ts";
@@ -106,8 +106,12 @@ async function main() {
   await enrich(http, state, unique, log);
   const today = now.toISOString().slice(0, 10);
   const final = prune(unique, today).sort((a, b) => a.id.localeCompare(b.id));
-  // Categories are derived from the stored facts, so rule changes apply to cached entries too.
-  for (const a of final) a.category = categorize(a);
+  // Categories and indoor/outdoor are derived from the stored facts, so rule changes apply to cached entries too.
+  for (const a of final) {
+    a.category = categorize(a);
+    a.setting = settingFromText(a);
+    if (!a.setting) delete a.setting;
+  }
   for (const info of infos) {
     const mine = final.filter((a) => a.source === info.id);
     info.count = mine.length;

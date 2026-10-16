@@ -93,6 +93,7 @@ function allFacts(facts: Record<string, string>, re: RegExp): string {
 
 const KINDS: [RegExp, string, Setting | undefined][] = [
   [/indoor|play ?(centre|center|area)|trampolin/i, "Indoor play", "indoor"],
+  [/open-air|freilicht/i, "Museum", "outdoor"],
   [/museum|exhibit|science/i, "Museum", "indoor"],
   [/sled|toboggan/i, "Sledding", "outdoor"],
   [/\bski|snowshoe|winter hike|winter walk/i, "Snow", "outdoor"],

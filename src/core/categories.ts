@@ -109,3 +109,77 @@ export function categorize(a: Categorizable): ActivityCategory {
   for (const [re, category] of CATEGORY_BY_TOPIC) if (re.test(hay)) return category;
   return a.source === "sportamt" ? "sport" : "other";
 }
+
+type SettingGuess = "indoor" | "outdoor" | "mixed";
+
+interface Placeable extends Categorizable {
+  setting?: SettingGuess;
+}
+
+/** Labels that settle it, set from the source's own category ("Indoorspielplatz"). */
+const SETTING_BY_STRONG_KIND: Record<string, SettingGuess> = {
+  "Indoor play": "indoor",
+  "Indoor pool": "indoor",
+  "Climbing hall": "indoor",
+  "Trampoline park": "indoor",
+};
+
+/**
+ * Words in a title or tag that say whether it is indoors. First match wins,
+ * so "Theater im Wald" is outdoors and "Zoologisches Museum" indoors.
+ */
+const SETTING_BY_TEXT: [RegExp, SettingGuess][] = [
+  [/outdoor|open-air|freilicht|im wald\b|im garten|draussen|im freien/, "outdoor"],
+  [/hallen-? ?und (frei|strand)bad|frei- und hallenbad/, "mixed"],
+  [
+    /museum|indoor|halle\b|\bhallen|therme|thermal|hammam|wellness|\bspa\b|escape|find-the-code|sato code|boda borg|trampolin|spielparadies|kinderparadies|kinderwelt|spielzänti|paradisimo|tummelplatz|spielzimmer|spielecke|adventure arena|kids arena|boulder|planetarium|ausstellung|exhibit|miniatur|diorama|chocolarium|chocowelt|chocolate|schokolade|glasi|factory|fabrik|kino|cinema|film|video|foto|bowling|billard|squash|bibliothek|library|theater|atelier|werkstatt|lernlokal|flickstube|kerzenziehen|schnitz|grittibänz|coiffeu|babymassage|beratung|chrabbel|krabbel|spielgruppe|keramik|töpfer|mal(en|kurs|atelier)|basteln|nähen|kleister|koch|backen|code camp|coding|programmier|minecraft|game lab|lego|illustration|kinderdisco|disco\b|party|kaffee|zmorge|z.nacht|popcorn|cafeteria|raumausleihe|treff\b|jugendtreff|workshop|erste hilfe|resilienz|selbstbehauptung|zivilcourage|märchen|grotte|freiruum|tanz|dance|akrobatik|yoga|budo|judo|karate|jitsu|kung fu|taekwondo|boxen|crossfit|fechten|selbstverteidigung|ninja|badminton|basketball|volleyball|handball|unihockey|tischtennis|tischfussball|curling|synchronschwimmen|artistic swimming|wasserspringen|tiny hands|indoor golf/,
+    "indoor",
+  ],
+  [/schloss|castle|burg\b|kloster|sternwarte|flohm|börse|tausch|bring- und hol|bringen & holen|zirkus|circus|eislauf|eiskunst|eishockey|tennis|padel|bogenschiess|polysport|chlaus/, "mixed"],
+  [
+    /wander|hike|hiking|trail|weg\b|pfad|spazier|spielplatz|robinson|zoo\b|tierpark|wildpark|vogelpark|papageienwelt|freizeitpark|conny-land|seilpark|kletterpark|aussicht|rheinfall|wasserfall|waterfall|lookout|viewpoint|freibad|strandbad|badi\b|frozen lake|\bsee\b|lake|river|fluss|wald|forest|natur|nature|garten|garden|bauernhof|farm|stall\b|tiere|schöfli|alp\b|berg\b|gipfel|summit|bahn\b|schlitt|sled|\bski(?!ll)|snow|velo|bike|biking|pumptrack|skate|minigolf|fussball|girlskick|landhockey|reiten|voltige|rudern|segeln|markt|market|umz[uü]g|parade|räbe|lichterfest|via advent|village|town|itinerary|fishing|tulip|festival|picnic|grill|feuer/,
+    "outdoor",
+  ],
+];
+
+/** Labels that hint at it when the words don't: crafts and games at a GZ take place in the centre. */
+const SETTING_BY_KIND: Record<string, SettingGuess> = {
+  Crafts: "indoor",
+  Games: "indoor",
+  Stories: "indoor",
+  Music: "indoor",
+  Theatre: "indoor",
+  Film: "indoor",
+  "Meet-up": "indoor",
+  Museum: "indoor",
+  "Factory visit": "indoor",
+  "Escape room": "indoor",
+  Hike: "outdoor",
+  Playground: "outdoor",
+  Animals: "outdoor",
+  Naturerlebnis: "outdoor",
+  Aussichtspunkt: "outdoor",
+};
+
+/** Sources whose own indoor/outdoor is kept when set: OSM tags and swissfamilyfun's sections say it best. */
+const OWN_SETTING = new Set(["osm", "swissfamilyfun"]);
+
+/**
+ * Sources that set it themselves. For the others, a stored value came from an
+ * earlier run of these rules and is not used as a fallback, so rule changes apply.
+ */
+const SETS_SETTING = new Set([...OWN_SETTING, "familienausflug"]);
+
+/**
+ * Indoor or outdoor from the entry's words. familienausflug's weather tags
+ * mark most places as good in rain and sun alike, so a clear word or category
+ * wins over them there. Undefined when nothing says.
+ */
+export function settingFromText(a: Placeable): SettingGuess | undefined {
+  if (a.setting && OWN_SETTING.has(a.source)) return a.setting;
+  const strong = SETTING_BY_STRONG_KIND[a.kind];
+  if (strong) return strong;
+  const hay = [a.title, ...(a.tags ?? [])].join(" ").toLowerCase();
+  for (const [re, setting] of SETTING_BY_TEXT) if (re.test(hay)) return setting;
+  return SETTING_BY_KIND[a.kind] ?? (SETS_SETTING.has(a.source) ? a.setting : undefined);
+}
