@@ -3,6 +3,7 @@ import { parseSitemap } from "./context.ts";
 import { ageRange, parseEntry, properties, toActivity as familienausflugActivity } from "./familienausflug.ts";
 import { toActivities as ferienplauschActivities } from "./ferienplausch.ts";
 import { parseCoordinates } from "./geo.ts";
+import { eventShape, geocodeQueries, parseCalendar, parseDetail, toActivity as kikukaActivity } from "./kikuka.ts";
 import { centreName, isForKids, parseOffer, toActivity as gzActivity } from "./gz.ts";
 import { toActivity as osmActivity } from "./osm.ts";
 import { courseTime, toActivity as sportamtActivity } from "./sportamt.ts";
@@ -254,6 +255,87 @@ describe("familienausflug", () => {
   it("combines age bands", () => {
     expect(ageRange(["2 bis 4 Jahre", "4 bis 6 Jahre"])).toEqual({ min: 2, max: 6 });
     expect(ageRange(["Jugendliche"])).toEqual({ min: 12, max: undefined });
+  });
+});
+
+const kikukaCard = (path: string, title: string, schedule: string, age: string) => `
+<div class="c-event-entry"><a href="${path}" class="js-event-link event-link"><div class="description-label"><div class="list-title">
+<h2> ${title} </h2><span class="d-block venue">Landesmuseum Zürich</span>
+<span class="d-block time"><div class="c-schedules">${schedule}</div></span>
+<span class="list-view-age d-none">${age}</span></div></div></a></div>`;
+
+const KIKUKA_CALENDAR = `
+<div class="c-event-list-title" data-calendar-date="2026-10-24"></div>
+${kikukaCard("/event/Landesmuseum%20Z%C3%BCrich/1", "Familientag", '<h3 class="schedule-date">Sa.<br />24. Oktober 2026</h3><p><span class="schedule-time">10.00 Uhr – 12.00 Uhr</span> <span class="schedule-time">14.00 Uhr – 16.00 Uhr</span></p>', "4-12 Jahre")}
+${kikukaCard("/event/Landesmuseum%20Z%C3%BCrich/2", "Ritter &amp; Burgen", '<h3 class="schedule-date"><span class="nowrap">22. Februar 2024</span> – <span class="nowrap">31. Dezember 2026</span></h3><p><span class="schedule-day">Di., Mi., Do., Fr., Sa., So.: </span><span class="schedule-time">10.00 Uhr – 17.00 Uhr</span></p>', "0-12 Jahre")}
+<div class="c-event-list-title" data-calendar-date="2026-10-25"></div>
+${kikukaCard("/event/Landesmuseum%20Z%C3%BCrich/1", "Familientag", '<h3 class="schedule-date">So.<br />25. Oktober 2026</h3><p><span class="schedule-time">10.00 Uhr – 12.00 Uhr</span> <span class="schedule-time">14.00 Uhr – 16.00 Uhr</span></p>', "4-12 Jahre")}
+${kikukaCard("/event/Landesmuseum%20Z%C3%BCrich/3", "Malkurs", '<h3 class="schedule-date"><span class="nowrap">17. August 2026</span> – <span class="nowrap">12. Februar 2027</span></h3><p><span class="schedule-day">Mittwoch: </span><span class="schedule-time">14.00 Uhr – 15.00 Uhr</span></p>', "6-8 Jahre")}`;
+
+describe("kikuka", () => {
+  it("reads cards per calendar day", () => {
+    const cards = parseCalendar(KIKUKA_CALENDAR);
+    expect(cards.map((c) => [c.id, c.day])).toEqual([
+      ["1", "2026-10-24"],
+      ["2", "2026-10-24"],
+      ["1", "2026-10-25"],
+      ["3", "2026-10-25"],
+    ]);
+    expect(cards[0]).toMatchObject({ title: "Familientag", venue: "Landesmuseum Zürich", ages: [4, 12], time: "10:00–12:00, 14:00–16:00" });
+    expect(cards[0].run).toBeUndefined();
+    expect(cards[1]).toMatchObject({ title: "Ritter & Burgen", run: { start: "2024-02-22", end: "2026-12-31", weekdays: [0, 2, 3, 4, 5, 6] } });
+    expect(cards[3].run?.weekdays).toEqual([3]);
+  });
+
+  it("tells programmes, opening hours and weekly courses apart", () => {
+    const cards = parseCalendar(KIKUKA_CALENDAR);
+    const of = (id: string) => cards.filter((c) => c.id === id);
+    expect(eventShape(of("1"))).toBe("dated");
+    expect(eventShape(of("2"))).toBe("place");
+    expect(eventShape(of("3"))).toBe("course");
+    const sundays = [{ ...of("3")[0], run: { start: "2017-01-01", end: "2027-12-31", weekdays: [0] } }];
+    expect(eventShape(sundays)).toBe("dated");
+  });
+
+  it("builds activities with the Sparte as kind", () => {
+    const cards = parseCalendar(KIKUKA_CALENDAR);
+    const of = (id: string) => cards.filter((c) => c.id === id);
+    expect(kikukaActivity(of("1"), [8, 6], { costChf: 0, booking: "required" })).toMatchObject({
+      id: "kikuka:1",
+      url: "https://kikuka.ch/event/Landesmuseum%20Z%C3%BCrich/1",
+      kind: "Workshop",
+      place: "Landesmuseum Zürich",
+      ageMin: 4,
+      ageMax: 12,
+      costChf: 0,
+      dates: [{ start: "2026-10-24", end: "2026-10-25", time: "10:00–12:00, 14:00–16:00" }],
+      tags: ["workshops", "museum", "Landesmuseum Zürich"],
+    });
+    const exhibition = kikukaActivity(of("2"), [18], {})!;
+    expect(exhibition.kind).toBe("Exhibition");
+    expect(exhibition.dates).toBeUndefined();
+    expect(kikukaActivity(of("3"), [8], {})).toBeNull();
+  });
+
+  it("adds the venue's town to bare street addresses and tries shorter forms", () => {
+    const qs = (address: string, venue: string) => geocodeQueries(address, venue).map(({ q, km }) => `${q} ≤${km}`);
+    expect(qs("Bergstrasse 111", "8707 Uetikon am See")).toEqual(["Bergstrasse 111, 8707 Uetikon am See ≤80", "8707 Uetikon am See ≤80"]);
+    expect(qs("Schiffbauplatz", "Jazzclub Moods")).toEqual(["Schiffbauplatz, Zürich ≤25", "Schiffbauplatz ≤80", "Zürich ≤25"]);
+    expect(qs("GZ Affoltern", "GZ Affoltern")).toEqual(["GZ Affoltern, Zürich ≤25", "Affoltern Zürich ≤25", "GZ Affoltern ≤80", "Zürich ≤25"]);
+    expect(qs("Kindertreff Viadukt, Josefwiese, Bogen 16, 8005 Zürich", "Kindertreff Viadukt")).toEqual([
+      "Kindertreff Viadukt, Josefwiese, Bogen 16, 8005 Zürich ≤80",
+      "Josefwiese, Bogen 16, 8005 Zürich ≤80",
+      "Bogen 16, 8005 Zürich ≤80",
+      "8005 Zürich ≤80",
+    ]);
+  });
+
+  it("reads address, price and sign-up from the event modal", () => {
+    const html = `<span class="description">Da die Platzzahl beschränkt ist, müssen Tickets reserviert werden.<br />Kostenlos </span>
+<div class="sub-info"> <strong>Kosten</strong><br> <p> Preiskategorie: CHF gratis<br /> </p> <strong>Veranstaltungsort(e)</strong><br>
+<a target="_blank" href="http://maps.google.ch/maps?q=Museumstrasse 2 8001 Zürich">Museumstrasse 2, 8001 Zürich</a> </div> <div class="end-links d-md-none">`;
+    expect(parseDetail(html)).toEqual({ address: "Museumstrasse 2, 8001 Zürich", costChf: 0, booking: "required" });
+    expect(parseDetail(html.replace("CHF gratis", "CHF 15.– / Kinder CHF 8.–")).costChf).toBe(8);
   });
 });
 

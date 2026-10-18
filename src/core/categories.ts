@@ -70,6 +70,7 @@ const CATEGORY_BY_KIND: Record<string, ActivityCategory> = {
   Movement: "sport",
   Museum: "museum",
   Castle: "museum",
+  Exhibition: "museum",
   "Factory visit": "museum",
   "sehenswerter Ort": "museum",
   Crafts: "creative",
@@ -77,6 +78,9 @@ const CATEGORY_BY_KIND: Record<string, ActivityCategory> = {
   Theatre: "creative",
   Film: "creative",
   Stories: "creative",
+  Dance: "creative",
+  Circus: "creative",
+  Workshop: "creative",
   Event: "events",
   Market: "events",
   "Meet-up": "events",
@@ -152,6 +156,9 @@ const SETTING_BY_KIND: Record<string, SettingGuess> = {
   Film: "indoor",
   "Meet-up": "indoor",
   Museum: "indoor",
+  Exhibition: "indoor",
+  Workshop: "indoor",
+  Dance: "indoor",
   "Factory visit": "indoor",
   "Escape room": "indoor",
   Hike: "outdoor",
@@ -160,6 +167,14 @@ const SETTING_BY_KIND: Record<string, SettingGuess> = {
   Naturerlebnis: "outdoor",
   Aussichtspunkt: "outdoor",
 };
+
+/**
+ * Sources whose label (the KiKuKa Sparte: theatre, music …) says more than
+ * loose words in a title or venue ("Karneval der Tiere", "Stall 6"); only
+ * the clear outdoor and pool words come first.
+ */
+const KIND_FIRST = new Set(["kikuka"]);
+const CLEAR_RULES = 2;
 
 /** Sources whose own indoor/outdoor is kept when set: OSM tags and swissfamilyfun's sections say it best. */
 const OWN_SETTING = new Set(["osm", "swissfamilyfun"]);
@@ -180,6 +195,9 @@ export function settingFromText(a: Placeable): SettingGuess | undefined {
   const strong = SETTING_BY_STRONG_KIND[a.kind];
   if (strong) return strong;
   const hay = [a.title, ...(a.tags ?? [])].join(" ").toLowerCase();
-  for (const [re, setting] of SETTING_BY_TEXT) if (re.test(hay)) return setting;
+  for (const [i, [re, setting]] of SETTING_BY_TEXT.entries()) {
+    if (i === CLEAR_RULES && KIND_FIRST.has(a.source) && SETTING_BY_KIND[a.kind]) return SETTING_BY_KIND[a.kind];
+    if (re.test(hay)) return setting;
+  }
   return SETTING_BY_KIND[a.kind] ?? (SETS_SETTING.has(a.source) ? a.setting : undefined);
 }

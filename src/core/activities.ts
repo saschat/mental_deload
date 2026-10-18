@@ -12,7 +12,7 @@ export { distanceKm, ZURICH_HB } from "./geo";
 export { CATEGORIES, categorize, settingFromText, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
 
-export type ActivitySourceId = "swissfamilyfun" | "familienausflug" | "osm" | "gz" | "sportamt" | "ferienplausch";
+export type ActivitySourceId = "swissfamilyfun" | "familienausflug" | "osm" | "gz" | "sportamt" | "ferienplausch" | "kikuka";
 
 export type Setting = "indoor" | "outdoor" | "mixed";
 
@@ -111,6 +111,7 @@ export const SOURCE_SHORT_NAMES: Record<ActivitySourceId, string> = {
   gz: "GZ",
   sportamt: "Sportamt",
   ferienplausch: "Ferienplausch",
+  kikuka: "KiKuKa",
 };
 
 export const SOURCE_NAMES: Record<ActivitySourceId, string> = {
@@ -120,6 +121,7 @@ export const SOURCE_NAMES: Record<ActivitySourceId, string> = {
   gz: "Zürcher Gemeinschaftszentren",
   sportamt: "Sportamt Stadt Zürich",
   ferienplausch: "Pro Juventute Ferienplausch",
+  kikuka: "KiKuKa Kinder Kultur Kalender",
 };
 
 /**

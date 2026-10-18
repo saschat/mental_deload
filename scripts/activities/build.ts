@@ -19,11 +19,12 @@ import { ferienplausch } from "./ferienplausch.ts";
 import { enrich, makeGeocoder } from "./geo.ts";
 import { gz } from "./gz.ts";
 import { Http } from "./http.ts";
+import { kikuka } from "./kikuka.ts";
 import { osm } from "./osm.ts";
 import { sportamt } from "./sportamt.ts";
 import { swissfamilyfun } from "./swissfamilyfun.ts";
 
-const SOURCES: Source[] = [swissfamilyfun, familienausflug, osm, gz, sportamt, ferienplausch];
+const SOURCES: Source[] = [swissfamilyfun, familienausflug, osm, gz, sportamt, ferienplausch, kikuka];
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -70,6 +71,8 @@ async function main() {
     // robots.txt crawl delays.
     delayMs: {
       "ferienplausch.feriennet.projuventute.ch": 10_000,
+      // No crawl delay in robots.txt; the calendar takes a few hundred small requests.
+      "kikuka.ch": 500,
       "api3.geo.admin.ch": 250,
       "api.open-meteo.com": 250,
       // Ten years of history is a heavy request; Open-Meteo answers 429 when they come faster.
