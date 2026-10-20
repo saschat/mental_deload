@@ -4,6 +4,8 @@ import { ref } from "vue";
 /** Last API connection problem, shown in the UI (we stay logged in for offline use). */
 export const connectError = ref<string | null>(null);
 export const apiConnected = ref(false);
+/** Counts socket (re)connects; the data store renews its subscriptions on each one after the first. */
+export const apiConnects = ref(0);
 
 const appId =
   import.meta.env.VITE_APP_ID || (import.meta.env.DEV ? "test" : "");
@@ -19,6 +21,7 @@ const config: BazaarOptions = {
   onApiConnect: async () => {
     apiConnected.value = true;
     connectError.value = null;
+    apiConnects.value += 1;
   },
   onApiConnectError: async (_bzr: BazaarApp, message: string) => {
     console.warn("Bazaar connect error:", message);

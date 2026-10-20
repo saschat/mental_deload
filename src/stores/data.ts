@@ -2,7 +2,7 @@ import { computed, ref, watch, type Ref } from "vue";
 import { defineStore } from "pinia";
 import type { CollectionAPI, Doc } from "@bzr/bazaar";
 
-import { apiConnected, bzr } from "@/bazaar";
+import { apiConnected, apiConnects, bzr } from "@/bazaar";
 import { addMonths, HORIZON_MONTHS, today as todayOf } from "@/core/dates";
 import { isUndecided, relevantKidIds } from "@/core/coverage";
 import { normalizeSettings, newId, SETTINGS_ID } from "@/core/defaults";
@@ -220,6 +220,39 @@ export const useDataStore = defineStore("data", () => {
       });
   }
 
+  let resubscribing: Promise<void> | null = null;
+
+  /**
+   * Renew the subscriptions after the socket reconnected (the phone slept, the
+   * network dropped). The server forgets them with the old connection, so
+   * changes would stop arriving. Mirroring again also reloads what was missed.
+   */
+  function resubscribe(): Promise<void> {
+    if (!live.value || starting) return Promise.resolve();
+    resubscribing ??= (async () => {
+      const old = unsubscribers.splice(0);
+      try {
+        await Promise.all([
+          mirror(col.kids, kids),
+          mirror(col.sources, sources),
+          mirror(col.events, events),
+          mirror(col.tasks, tasks),
+          mirror(col.settings, settingsDocs),
+          mirror(col.ideaMarks, ideaMarks),
+        ]);
+      } catch (e) {
+        console.warn("Bazaar resubscribe failed:", e);
+      }
+      for (const u of old) await u().catch(() => undefined);
+    })().finally(() => {
+      resubscribing = null;
+    });
+    return resubscribing;
+  }
+  watch(apiConnects, (n, prev) => {
+    if (prev > 0 && n > prev) void resubscribe();
+  });
+
   async function stop() {
     for (const u of unsubscribers.splice(0)) await u().catch(() => undefined);
     live.value = false;
@@ -249,29 +282,56 @@ export const useDataStore = defineStore("data", () => {
     return timeout(p, WRITE_TIMEOUT_MS, "Saving to Bazaar timed out. Check your connection.");
   }
 
+  /**
+   * Save a doc and show it right away. The subscription echoes it back later;
+   * the screen does not wait for that, so a slow or dropped subscription
+   * never leaves a change invisible until a reload.
+   */
+  async function put<T extends Doc>(collection: CollectionAPI<T>, target: Ref<T[]>, doc: T, exists: boolean) {
+    const saving: Promise<unknown> = exists ? collection.replaceOne(doc.id, doc) : collection.insertOne(doc);
+    // Also when it lands after the timeout message, e.g. once a dead connection is replaced.
+    saving.then(
+      () => {
+        const i = target.value.findIndex((d) => d.id === doc.id);
+        if (i >= 0) target.value[i] = doc;
+        else target.value.push(doc);
+      },
+      () => undefined,
+    );
+    await write(saving);
+  }
+
+  async function remove<T extends Doc>(collection: CollectionAPI<T>, target: Ref<T[]>, id: string) {
+    const removing = collection.deleteOne(id);
+    removing.then(
+      () => {
+        const i = target.value.findIndex((d) => d.id === id);
+        if (i >= 0) target.value.splice(i, 1);
+      },
+      () => undefined,
+    );
+    await write(removing);
+  }
+
   const nowIso = () => new Date().toISOString();
 
   // Kids
   async function saveKid(kid: Omit<Kid, "id"> & { id?: string }) {
     guard();
-    if (kid.id && kids.value.some((k) => k.id === kid.id)) {
-      await write(col.kids.replaceOne(kid.id, stripUndefined(kid as Kid)));
-    } else {
-      await write(col.kids.insertOne(stripUndefined({ ...kid, id: kid.id ?? newId() } as Kid)));
-    }
+    const exists = !!kid.id && kids.value.some((k) => k.id === kid.id);
+    await put(col.kids, kids, stripUndefined({ ...kid, id: kid.id ?? newId() } as Kid), exists);
   }
 
   async function deleteKid(id: string) {
     guard();
-    await write(col.kids.deleteOne(id));
+    await remove(col.kids, kids, id);
   }
 
   // Settings
   async function saveSettings(s: Settings) {
     guard();
     const doc = clone({ ...s, id: SETTINGS_ID });
-    if (settingsDocs.value.some((d) => d.id === SETTINGS_ID)) await write(col.settings.replaceOne(SETTINGS_ID, doc));
-    else await write(col.settings.insertOne(doc));
+    await put(col.settings, settingsDocs, doc, settingsDocs.value.some((d) => d.id === SETTINGS_ID));
   }
 
   // Idea marks
@@ -280,20 +340,18 @@ export const useDataStore = defineStore("data", () => {
     guard();
     const existing = ideaMarksByActivity.value.get(activity.id);
     if (!mark) {
-      if (existing) await write(col.ideaMarks.deleteOne(existing.id));
+      if (existing) await remove(col.ideaMarks, ideaMarks, existing.id);
       return;
     }
     const doc: IdeaMark = { id: existing?.id ?? newId(), activityId: activity.id, mark, title: activity.title, updatedAt: nowIso() };
-    if (existing) await write(col.ideaMarks.replaceOne(existing.id, doc));
-    else await write(col.ideaMarks.insertOne(doc));
+    await put(col.ideaMarks, ideaMarks, doc, !!existing);
   }
 
   // Events
   async function saveEvent(ev: FamilyEvent) {
     guard();
     const doc = stripUndefined(clone({ ...ev, updatedAt: nowIso() }));
-    if (eventsById.value.has(ev.id)) await write(col.events.replaceOne(ev.id, doc));
-    else await write(col.events.insertOne(doc));
+    await put(col.events, events, doc, eventsById.value.has(ev.id));
   }
 
   function newManualEvent(partial: Partial<FamilyEvent>): FamilyEvent {
@@ -315,8 +373,8 @@ export const useDataStore = defineStore("data", () => {
   async function deleteEvent(id: string) {
     guard();
     const ts = tasks.value.filter((t) => t.eventId === id);
-    await inBatches(ts, 20, (t) => write(col.tasks.deleteOne(t.id)));
-    await write(col.events.deleteOne(id));
+    await inBatches(ts, 20, (t) => remove(col.tasks, tasks, t.id));
+    await remove(col.events, events, id);
   }
 
   /** Task changes implied by new segments (UI asks before deleting stale ones). */
@@ -346,16 +404,15 @@ export const useDataStore = defineStore("data", () => {
     guard();
     await saveEvent({ ...ev, segments });
     if (!plan) return;
-    if (replaceStale) await inBatches(plan.stale, 20, (t) => write(col.tasks.deleteOne(t.id)));
-    await inBatches(plan.create, 20, (t) => write(col.tasks.insertOne(stripUndefined(t))));
+    if (replaceStale) await inBatches(plan.stale, 20, (t) => remove(col.tasks, tasks, t.id));
+    await inBatches(plan.create, 20, (t) => put(col.tasks, tasks, stripUndefined(t), false));
   }
 
   // Tasks
   async function saveTask(task: Task) {
     guard();
     const doc = stripUndefined(clone(task));
-    if (tasks.value.some((t) => t.id === task.id)) await write(col.tasks.replaceOne(task.id, doc));
-    else await write(col.tasks.insertOne(doc));
+    await put(col.tasks, tasks, doc, tasks.value.some((t) => t.id === task.id));
   }
 
   async function addTask(
@@ -377,15 +434,14 @@ export const useDataStore = defineStore("data", () => {
   async function deleteTask(task: Task) {
     guard();
     const all = withDescendants([task], tasks.value);
-    await inBatches(all, 20, (t) => write(col.tasks.deleteOne(t.id)));
+    await inBatches(all, 20, (t) => remove(col.tasks, tasks, t.id));
   }
 
   // Sources & import
   async function saveSource(src: Source) {
     guard();
     const doc = stripUndefined(clone(src));
-    if (sources.value.some((s) => s.id === src.id)) await write(col.sources.replaceOne(src.id, doc));
-    else await write(col.sources.insertOne(doc));
+    await put(col.sources, sources, doc, sources.value.some((s) => s.id === src.id));
   }
 
   async function deleteSource(id: string, deleteEvents: boolean) {
@@ -398,7 +454,7 @@ export const useDataStore = defineStore("data", () => {
         saveEvent(stripUndefined({ ...e, sourceId: undefined, externalKey: undefined, upstreamFlag: null })),
       );
     }
-    await write(col.sources.deleteOne(id));
+    await remove(col.sources, sources, id);
   }
 
   function prepareWeekendImport(source: Source): PendingImport {
@@ -448,21 +504,21 @@ export const useDataStore = defineStore("data", () => {
     const { plan, source } = pending;
     const byId = eventsById.value;
     await saveSource({ ...source, lastImportedAt: nowIso(), lastError: undefined });
-    await inBatches(plan.create, 20, (e) => write(col.events.insertOne(stripUndefined(e))));
+    await inBatches(plan.create, 20, (e) => put(col.events, events, stripUndefined(e), false));
     await inBatches(plan.update, 20, async (u) => {
       const ev = byId.get(u.id);
-      if (ev) await write(col.events.replaceOne(u.id, stripUndefined({ ...ev, ...u.patch })));
+      if (ev) await put(col.events, events, stripUndefined({ ...ev, ...u.patch }), true);
     });
     await inBatches(plan.flagChanged, 20, async (f) => {
       const ev = byId.get(f.id);
       if (ev) {
         const doc = { ...ev, upstreamFlag: "changed" as const, upstreamPending: f.pending, category: f.category ?? ev.category };
-        await write(col.events.replaceOne(f.id, stripUndefined(doc)));
+        await put(col.events, events, stripUndefined(doc), true);
       }
     });
     await inBatches(plan.flagRemoved, 20, async (id) => {
       const ev = byId.get(id);
-      if (ev) await write(col.events.replaceOne(id, stripUndefined({ ...ev, upstreamFlag: "removed", upstreamPending: null })));
+      if (ev) await put(col.events, events, stripUndefined({ ...ev, upstreamFlag: "removed", upstreamPending: null }), true);
     });
     await inBatches(plan.remove, 20, (id) => deleteEvent(id));
   }
