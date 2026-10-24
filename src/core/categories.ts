@@ -84,6 +84,7 @@ const CATEGORY_BY_KIND: Record<string, ActivityCategory> = {
   Event: "events",
   Market: "events",
   "Meet-up": "events",
+  Trip: "trips",
 };
 
 /**
@@ -133,7 +134,7 @@ const SETTING_BY_STRONG_KIND: Record<string, SettingGuess> = {
  * so "Theater im Wald" is outdoors and "Zoologisches Museum" indoors.
  */
 const SETTING_BY_TEXT: [RegExp, SettingGuess][] = [
-  [/outdoor|open-air|freilicht|im wald\b|im garten|draussen|im freien/, "outdoor"],
+  [/outdoor|open-air|freilicht|im wald\b|im garten|draussen|im freien|kürbisausstellung/, "outdoor"],
   [/hallen-? ?und (frei|strand)bad|frei- und hallenbad/, "mixed"],
   [
     /museum|indoor|halle\b|\bhallen|therme|thermal|hammam|wellness|\bspa\b|escape|find-the-code|sato code|boda borg|trampolin|spielparadies|kinderparadies|kinderwelt|spielzänti|paradisimo|tummelplatz|spielzimmer|spielecke|adventure arena|kids arena|boulder|planetarium|ausstellung|exhibit|miniatur|diorama|chocolarium|chocowelt|chocolate|schokolade|glasi|factory|fabrik|kino|cinema|film|video|foto|bowling|billard|squash|bibliothek|library|theater|atelier|werkstatt|lernlokal|flickstube|kerzenziehen|schnitz|grittibänz|coiffeu|babymassage|beratung|chrabbel|krabbel|spielgruppe|keramik|töpfer|mal(en|kurs|atelier)|basteln|nähen|kleister|koch|backen|code camp|coding|programmier|minecraft|game lab|lego|illustration|kinderdisco|disco\b|party|kaffee|zmorge|z.nacht|popcorn|cafeteria|raumausleihe|treff\b|jugendtreff|workshop|erste hilfe|resilienz|selbstbehauptung|zivilcourage|märchen|grotte|freiruum|tanz|dance|akrobatik|yoga|budo|judo|karate|jitsu|kung fu|taekwondo|boxen|crossfit|fechten|selbstverteidigung|ninja|badminton|basketball|volleyball|handball|unihockey|tischtennis|tischfussball|curling|synchronschwimmen|artistic swimming|wasserspringen|tiny hands|indoor golf/,
@@ -176,8 +177,11 @@ const SETTING_BY_KIND: Record<string, SettingGuess> = {
 const KIND_FIRST = new Set(["kikuka"]);
 const CLEAR_RULES = 2;
 
-/** Sources whose own indoor/outdoor is kept when set: OSM tags and swissfamilyfun's sections say it best. */
-const OWN_SETTING = new Set(["osm", "swissfamilyfun"]);
+/**
+ * Sources whose own indoor/outdoor is kept when set: OSM tags, swissfamilyfun's
+ * sections and the indoor/outdoor classes of Zürich, Zürioberland and Switzerland Tourism say it best.
+ */
+const OWN_SETTING = new Set(["osm", "swissfamilyfun", "zuerich", "zuerioberland", "myswitzerland"]);
 
 /**
  * Sources that set it themselves. For the others, a stored value came from an

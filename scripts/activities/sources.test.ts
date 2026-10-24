@@ -7,7 +7,11 @@ import { eventShape, geocodeQueries, parseCalendar, parseDetail, toActivity as k
 import { centreName, isForKids, parseOffer, toActivity as gzActivity } from "./gz.ts";
 import { toActivity as osmActivity } from "./osm.ts";
 import { courseTime, toActivity as sportamtActivity } from "./sportamt.ts";
-import { classify, parsePost, strollerFrom, toActivity as sffActivity } from "./swissfamilyfun.ts";
+import { childPrice, kindOf, parseListing, parsePage, parseSchedule, toActivity as freizeitActivity } from "./freizeit.ts";
+import { seasonMonths, toActivity as msActivity, type MsAttraction } from "./myswitzerland.ts";
+import { parseGeo, pickPlace, placeQueries, toActivity as zoActivity, type ZoCategory } from "./zuerioberland.ts";
+import { openMonths, pageSlug, toActivity as zuerichActivity, type ZtPlace } from "./zuerich.ts";
+import { classify, parsePost, seasonFromTags, strollerFrom, toActivity as sffActivity } from "./swissfamilyfun.ts";
 
 const SFF_POST = `<html><head><title>Bachtel Kulm • Short hike to Zürich panorama</title>
 <script type="application/ld+json" class="yoast-schema-graph">{"@graph":[{"@type":"Article","headline":"Bachtel Kulm &#8226; Short hike to Zürich panorama","articleSection":["Hiking Trail"],"keywords":["Tower"]}]}</script></head>
@@ -57,6 +61,15 @@ describe("swissfamilyfun", () => {
       setting: "indoor",
     });
     expect(classify({ title: "Castle visit", sections: ["Castles"], keywords: ["Rainy Day"] }).setting).toBe("mixed");
+  });
+
+  it("ties seasonal events to their months but leaves best-season hikes open", () => {
+    expect(seasonFromTags("Animals", ["Fall Event", "Zurich Autumn"])).toEqual([9, 10, 11]);
+    expect(seasonFromTags("Outing", ["Fall Event", "Winter Event"])).toEqual([11]);
+    expect(seasonFromTags("Nature", ["Summer Swim", "Zurich Summer"])).toEqual([6, 7, 8]);
+    expect(seasonFromTags("Hike", ["Summer Swim"])).toBeUndefined();
+    expect(seasonFromTags("Hike", ["Autumn", "Fall Colors"])).toBeUndefined();
+    expect(seasonFromTags("Hike", ["Spring Hiking", "Zurich Spring"])).toEqual([3, 4, 5]);
   });
 
   it("reads stroller hints", () => {
@@ -336,6 +349,213 @@ describe("kikuka", () => {
 <a target="_blank" href="http://maps.google.ch/maps?q=Museumstrasse 2 8001 Zürich">Museumstrasse 2, 8001 Zürich</a> </div> <div class="end-links d-md-none">`;
     expect(parseDetail(html)).toEqual({ address: "Museumstrasse 2, 8001 Zürich", costChf: 0, booking: "required" });
     expect(parseDetail(html.replace("CHF gratis", "CHF 15.– / Kinder CHF 8.–")).costChf).toBe(8);
+  });
+});
+
+describe("freizeit", () => {
+  const EVENT = `<script>dataLayer.push({ "canton": "Z\u00fcrich", "city": "Aathal-Seegr\u00e4ben", "pageCategory": "Feste - M\u00e4rkte - Z\u00fcrich", "pageSection": "Agenda" });</script>
+<h1 class="title">Kürbisausstellungen auf den Juckerhöfen</h1>
+<section id="calendar" class="block-layout"><div class="calendar-column"><div class="data-container"> <h2>Öffnungszeiten</h2> <h4>Kürbisausstellung Juckerhof</h4><p>Von 19 September bis 25 Oktober 2026</p><p>Von 29 bis 31 Oktober 2026</p><p>von donnerstag bis samstag von 18h00 bis 23h00</p> </div></div>
+<div class="calendar-column"><div class="data-container"> <h2>Preise</h2> <div class="tarifs"> <div class="tarif-item"> <span class="key">Erwachsene Sa-So</span> <span class="value"> 13 CHF </span> </div> <div class="tarif-item"> <span class="key">Kinder bis 12 Jahre</span> <span class="value"> Gratis </span> </div> </div></div></div></section>
+<div class="nearby-activities" data-center-lat="47.3438954" data-center-lng="8.7726758"></div>`;
+
+  it("reads listing cards and the last page", () => {
+    const html = `<article class="card card--typed"> <a class="article-link" href="https://www.freizeit.ch/kalender/x/" data-gtm-contentid="1" data-gtm-post-type="agenda" > </a></article>
+<a href="https://www.freizeit.ch/category/region/zug/?page=2">2</a><a href="https://www.freizeit.ch/category/region/zug/?page=8">8</a>`;
+    expect(parseListing(html)).toEqual({ cards: [{ url: "https://www.freizeit.ch/kalender/x/", type: "agenda" }], lastPage: 8 });
+  });
+
+  it("turns an event page into dated activity with the children's price", () => {
+    const page = parsePage(EVENT);
+    expect(page).toMatchObject({ title: "Kürbisausstellungen auf den Juckerhöfen", section: "Agenda", categories: ["Feste", "Märkte"], city: "Aathal-Seegräben" });
+    expect(freizeitActivity("https://www.freizeit.ch/kalender/kurbisausstellungen/", page, "2026-10-24")).toEqual({
+      id: "freizeit:kurbisausstellungen",
+      source: "freizeit",
+      title: "Kürbisausstellungen auf den Juckerhöfen",
+      url: "https://www.freizeit.ch/kalender/kurbisausstellungen/",
+      kind: "Event",
+      lat: 47.3438954,
+      lng: 8.7726758,
+      place: "Aathal-Seegräben",
+      costChf: 0,
+      dates: [{ start: "2026-09-19", end: "2026-10-25" }, { start: "2026-10-29", end: "2026-10-31", time: "18:00–23:00" }],
+      tags: ["Feste", "Märkte"],
+    });
+    expect(freizeitActivity("https://www.freizeit.ch/kalender/k/", page, "2026-11-01")).toBeNull();
+  });
+
+  it("reads single dates and ranges across months", () => {
+    expect(parseSchedule(["31 Oktober 2026", "samstag von 16h00 bis 22h30", "Von 30 Dezember bis 2 Januar 2027"])).toEqual([
+      { start: "2026-10-31", time: "16:00–22:30" },
+      { start: "2026-12-30", end: "2027-01-02" },
+    ]);
+  });
+
+  it("prefers the children's price", () => {
+    expect(childPrice({ tariffs: [["Erwachsene", "10 CHF"], ["Kinder (6-15)", "6 CHF"]], calendarText: "" })).toBe(6);
+    expect(childPrice({ tariffs: [], calendarText: "Preise\nCHF 6.- pro Person, Kinder bis 5 Jahre gratis\nÖffnungszeiten\ntäglich" })).toBe(6);
+  });
+
+  it("names the kind from the categories and leaves out grown-up outings", () => {
+    expect(kindOf({ title: "Juckerhof", section: "Activite", categories: ["Agrotourismus", "Bauernhöfe", "Spielplätze"] })).toBe("Animals");
+    expect(kindOf({ title: "Hopfen, Malz & Salz Tour", section: "Activite", categories: ["Degustationen", "Museen"] })).toBeNull();
+    expect(kindOf({ title: "Sim Racing Sport Bar", section: "Activite", categories: ["Spiele"] })).toBeNull();
+    expect(kindOf({ title: "Familienkonzert", section: "Agenda", categories: ["Konzerte"] })).toBe("Event");
+    expect(kindOf({ title: "Zürich liest", section: "Agenda", categories: ["Literatur"] })).toBeNull();
+  });
+});
+
+describe("myswitzerland", () => {
+  const cls = (name: string, ...values: string[]) => ({ name, values: values.map((v) => ({ name: v })) });
+  const zoo: MsAttraction = {
+    identifier: "abc",
+    name: "Plättli Zoo",
+    url: "https://www.myswitzerland.com/de/erlebnisse/plaettli-zoo/",
+    geo: { latitude: 47.5536, longitude: 8.8986 },
+    classification: [
+      cls("suitablefortype", "family", "children"),
+      cls("childrenage", "0to5years", "6to9years"),
+      cls("indooroutdoorclassifications", "outdoor"),
+      cls("seasons", "spring", "summer", "autumn", "winter"),
+      cls("experiencetype", "nature", "education"),
+    ],
+  };
+
+  it("turns a family attraction into an outing with ages and setting", () => {
+    expect(msActivity(zoo)).toEqual({
+      id: "myswitzerland:abc",
+      source: "myswitzerland",
+      title: "Plättli Zoo",
+      url: "https://www.myswitzerland.com/de/erlebnisse/plaettli-zoo/",
+      kind: "Animals",
+      setting: "outdoor",
+      lat: 47.5536,
+      lng: 8.8986,
+      ageMax: 9,
+      tags: ["nature", "education"],
+    });
+  });
+
+  it("leaves out attractions not for families and far ones, and reads seasons", () => {
+    expect(msActivity({ ...zoo, classification: [cls("suitablefortype", "couples")] })).toBeNull();
+    expect(msActivity({ ...zoo, geo: { latitude: 46.6, longitude: 8.6 } })).toBeNull();
+    const run = msActivity({ ...zoo, name: "Sommer-Rodelbahn", classification: [cls("suitablefortype", "family"), cls("seasons", "summer", "autumn"), cls("childrenage", "6to9years", "14plus")] });
+    expect(run).toMatchObject({ kind: "Adventure park", months: [4, 5, 6, 7, 8, 9, 10], ageMin: 6 });
+    expect(run?.ageMax).toBeUndefined();
+  });
+
+  it("takes months only from clear season patterns", () => {
+    expect(seasonMonths(["winter"])).toEqual([12, 1, 2, 3]);
+    expect(seasonMonths(["winter", "summer"])).toBeUndefined();
+    expect(seasonMonths(["spring", "summer", "autumn", "winter"])).toBeUndefined();
+    expect(msActivity({ ...zoo, name: "Sihlpark Wellness" })).toBeNull();
+  });
+});
+
+describe("zuerioberland", () => {
+  const categories = new Map<number, ZoCategory>([
+    [291, { id: 291, name: "Tiere &amp; Bauernhöfe", parent: 285 }],
+    [288, { id: 288, name: "Familien", parent: 285 }],
+    [376, { id: 376, name: "Pfäffikon", parent: 351 }],
+  ]);
+  const farm = {
+    id: 1,
+    slug: "alpakahof-theilingen",
+    link: "https://www.zuerioberland.ch/erlebnisse/alpakahof-theilingen/",
+    title: { rendered: "Alpakahof Theilingen" },
+    modified_gmt: "2026-10-01T10:00:00",
+    categories: [51, 288, 291, 376, 71],
+  };
+
+  it("turns a family experience into an outing with town and setting", () => {
+    expect(zoActivity(farm, categories)).toEqual({
+      id: "zuerioberland:alpakahof-theilingen",
+      source: "zuerioberland",
+      title: "Alpakahof Theilingen",
+      url: "https://www.zuerioberland.ch/erlebnisse/alpakahof-theilingen/",
+      kind: "Animals",
+      setting: "outdoor",
+      place: "Pfäffikon",
+      tags: ["Tiere & Bauernhöfe"],
+    });
+  });
+
+  it("leaves out places to eat and gives snow its season", () => {
+    expect(zoActivity({ ...farm, title: { rendered: "Sticki Kaffee" }, categories: [51, 1105] }, categories)).toBeNull();
+    expect(zoActivity({ ...farm, title: { rendered: "Schlittelweg Bachtel" }, categories: [51, 287] }, categories)).toMatchObject({
+      kind: "Sledding",
+      months: [12, 1, 2, 3],
+    });
+  });
+
+  it("places hikes by the names in their title, picking namesakes that lie together", () => {
+    expect(placeQueries("Naturrundweg Illnau–Agasul")).toEqual(["Illnau", "Agasul"]);
+    expect(placeQueries("Wetter. Wunder. Wissen.")).toEqual(["Wetter", "Wunder", "Wissen"]);
+    const ottikonGossau: [number, number] = [47.294, 8.778];
+    const ottikonKemptthal: [number, number] = [47.434, 8.717];
+    expect(pickPlace([[ottikonGossau, ottikonKemptthal], [[47.437, 8.736]]])).toEqual(ottikonKemptthal);
+    expect(pickPlace([[], [ottikonGossau]])).toEqual(ottikonGossau);
+    expect(pickPlace([[], []])).toBeNull();
+  });
+
+  it("reads coordinates from the TouristAttraction", () => {
+    expect(parseGeo(`{"@type":"TouristAttraction","address":{"@type":"PostalAddress"},"geo":{"@type":"GeoCoordinates","latitude":47.30499,"longitude":8.89571}}`)).toEqual([
+      47.30499, 8.89571,
+    ]);
+  });
+});
+
+describe("zuerich", () => {
+  const jucker: ZtPlace = {
+    identifier: "2659",
+    "@type": "CivicStructure",
+    name: { de: "Juckerhof Seegräben – Der Erlebnisbauernhof am Pfäffikersee", en: "Juckerhof Seegräben" },
+    geoCoordinates: { latitude: 47.343803, longitude: 8.772844 },
+    address: { addressLocality: "Seegräben", url: "https://www.juckerfarm.ch" },
+    price: { de: null },
+    specialOpeningHoursSpecification: { de: "<p>Finden Sie hier die <a href='x'>Öffnungszeiten</a></p>" },
+    place: ["Outdoors"],
+  };
+  const page = "https://www.zuerich.com/de/besuchen/natur/juckerhof-seegraeben-der-erlebnisbauernhof-am-pfaeffikersee";
+  const pages = new Map([[pageSlug(jucker.name.de), page]]);
+
+  it("turns a place into an outing with its zuerich.com page", () => {
+    expect(zuerichActivity(jucker, [99, 161], pages)).toEqual({
+      id: "zuerich:2659",
+      source: "zuerich",
+      title: "Juckerhof Seegräben – Der Erlebnisbauernhof am Pfäffikersee",
+      url: page,
+      kind: "Animals",
+      setting: "outdoor",
+      lat: 47.343803,
+      lng: 8.772844,
+      place: "Seegräben",
+    });
+    expect(zuerichActivity(jucker, [99], new Map())?.url).toBe("https://www.juckerfarm.ch");
+  });
+
+  it("skips far-away places, restaurants and closed ones", () => {
+    expect(zuerichActivity({ ...jucker, geoCoordinates: { latitude: 46.547, longitude: 7.985 } }, [99], pages)).toBeNull();
+    expect(zuerichActivity({ ...jucker, "@type": "Restaurant" }, [99], pages)).toBeNull();
+    expect(zuerichActivity({ ...jucker, specialOpeningHoursSpecification: { de: "Vorübergehend geschlossen" } }, [99], pages)).toBeNull();
+  });
+
+  it("knows the season of markets, snow and summer places", () => {
+    const at = (name: string, categories: number[], extra: Partial<ZtPlace> = {}) =>
+      zuerichActivity({ ...jucker, name: { de: name }, specialOpeningHoursSpecification: null, ...extra }, categories, pages);
+    expect(at("Zürcher Weihnachtsallee", [418])?.months).toEqual([11, 12]);
+    expect(at("Rodeln am Bachtel", [99, 153])).toMatchObject({ kind: "Sledding", months: [12, 1, 2, 3] });
+    expect(at("Langlauf am Bachtel", [99])).toMatchObject({ kind: "Snow", months: [12, 1, 2, 3] });
+    expect(at("Rigi im Sommer", [99])?.months).toEqual([5, 6, 7, 8, 9, 10]);
+    expect(at("Strandbad Mythenquai", [141])?.months).toEqual([5, 6, 7, 8, 9]);
+    expect(at("Hallenbad City", [141], { place: ["Indoors"] })).toMatchObject({ setting: "indoor" });
+    expect(at("Hallenbad City", [141], { place: ["Indoors"] })?.months).toBeUndefined();
+  });
+
+  it("reads seasonal closures as the months that are left", () => {
+    expect(openMonths("Saisonbedingt geschlossen von Mittwoch, 24. Dezember 2025 bis Donnerstag, 19. November 2026.")).toEqual([11, 12]);
+    expect(openMonths("Saisonbedingt geschlossen von Montag, 15. September 2025 bis Freitag, 15. Mai 2026.")).toEqual([5, 6, 7, 8, 9]);
+    expect(openMonths("Rund um die Uhr geöffnet")).toBeUndefined();
   });
 });
 

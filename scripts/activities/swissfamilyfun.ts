@@ -23,8 +23,8 @@ import {
 const BASE = "https://swissfamilyfun.com";
 /** Posts rarely change; re-read unchanged ones every quarter anyway. */
 const MAX_AGE_DAYS = 90;
-/** 2: target ages. */
-const VERSION = 2;
+/** 2: target ages. 3: season from tags. */
+const VERSION = 3;
 
 export interface SffPost {
   title: string;
@@ -121,6 +121,32 @@ export function classify(post: Pick<SffPost, "title" | "sections" | "keywords">)
   return { kind: "Outing", setting: rainy ? "indoor" : undefined };
 }
 
+/**
+ * Months that season tags tie an outing to: "Fall Event", "Zurich Summer",
+ * "Christmas Markets". Hikes with a best season ("Fall Colors", "Summer Swim")
+ * stay open all year; only the "Zurich <season>" and event tags bind them.
+ */
+const SEASON_TAGS: [RegExp, number[], boolean][] = [
+  [/fall event|zurich autumn|pumpkin/i, [9, 10, 11], true],
+  [/winter event|zurich winter/i, [11, 12, 1, 2], true],
+  [/christmas market/i, [11, 12], true],
+  [/zurich summer/i, [6, 7, 8], true],
+  [/zurich spring/i, [3, 4, 5], true],
+  [/summer swim/i, [6, 7, 8], false],
+  [/spring activities/i, [3, 4, 5], false],
+];
+
+export function seasonFromTags(kind: string, texts: readonly string[]): number[] | undefined {
+  const sets: number[][] = [];
+  for (const [re, months, always] of SEASON_TAGS) {
+    if ((always || kind !== "Hike") && texts.some((t) => re.test(t))) sets.push(months);
+  }
+  if (!sets.length) return undefined;
+  // A "Fall Event" that is also a "Winter Event" happens where they meet (November).
+  const both = sets.reduce((a, b) => a.filter((m) => b.includes(m)));
+  return both.length ? both : [...new Set(sets.flat())];
+}
+
 export function strollerFrom(...texts: (string | undefined)[]): boolean | undefined {
   const t = texts.filter(Boolean).join(" ").toLowerCase();
   if (/no strollers?|not (?:suitable|good|possible|recommended) for (?:a )?strollers?|not stroller|strollers? (?:not|aren.t|are not)/.test(t)) return false;
@@ -143,7 +169,10 @@ export function toActivity(url: string, post: SffPost): Omit<Activity, "lat" | "
   const skill = fact(f, /^skill|difficulty/i);
   if (skill) hike.skill = skill.split(/[,(]/)[0].trim().slice(0, 30);
   const winter = /sled|ski|snow|winter/i.test([...post.sections, post.title].join(" "));
-  const months = parseMonths(fact(f, /^open|season|when/i)) ?? (winter ? [12, 1, 2, 3] : undefined);
+  const months =
+    parseMonths(fact(f, /^open|season|when/i)) ??
+    seasonFromTags(kind, [...post.sections, ...post.keywords, post.title]) ??
+    (winter ? [12, 1, 2, 3] : undefined);
   const place = (fact(f, /^location|^region/i) ?? "").split(/[,•]/)[0].trim() || undefined;
   const ageFact = fact(f, /^ages?\b|^kids|^children|^suitable/i);
   const ages = ageFact ? parseAges(ageFact) : parseSuitableAge(post.text);

@@ -16,15 +16,19 @@ import { climateFor } from "./climate.ts";
 import { emptyState, type Context, type CrawlState, type Source } from "./context.ts";
 import { familienausflug } from "./familienausflug.ts";
 import { ferienplausch } from "./ferienplausch.ts";
+import { freizeit } from "./freizeit.ts";
 import { enrich, makeGeocoder } from "./geo.ts";
 import { gz } from "./gz.ts";
 import { Http } from "./http.ts";
 import { kikuka } from "./kikuka.ts";
+import { myswitzerland } from "./myswitzerland.ts";
 import { osm } from "./osm.ts";
 import { sportamt } from "./sportamt.ts";
 import { swissfamilyfun } from "./swissfamilyfun.ts";
+import { zuerich } from "./zuerich.ts";
+import { zuerioberland } from "./zuerioberland.ts";
 
-const SOURCES: Source[] = [swissfamilyfun, familienausflug, osm, gz, sportamt, ferienplausch, kikuka];
+const SOURCES: Source[] = [swissfamilyfun, familienausflug, osm, gz, sportamt, ferienplausch, kikuka, zuerich, freizeit, zuerioberland, myswitzerland];
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -55,6 +59,8 @@ function prune(activities: Activity[], today: string): Activity[] {
 }
 
 async function main() {
+  // API keys (MYSWITZERLAND_API_KEY) live in the gitignored .env.
+  if (existsSync(".env")) process.loadEnvFile(".env");
   const outDir = arg("out") ?? "public";
   const only = arg("only")?.split(",") as ActivitySourceId[] | undefined;
   const maxPages = Number(arg("max-pages") ?? Infinity);
@@ -73,6 +79,8 @@ async function main() {
       "ferienplausch.feriennet.projuventute.ch": 10_000,
       // No crawl delay in robots.txt; the calendar takes a few hundred small requests.
       "kikuka.ch": 500,
+      // The API key allows one request per second.
+      "opendata.myswitzerland.io": 1100,
       "api3.geo.admin.ch": 250,
       "api.open-meteo.com": 250,
       // Ten years of history is a heavy request; Open-Meteo answers 429 when they come faster.

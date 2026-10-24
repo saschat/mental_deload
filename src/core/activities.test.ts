@@ -201,6 +201,8 @@ describe("settingFromText", () => {
     [{ source: "kikuka" as const, kind: "Music", title: "Karneval der Tiere", tags: ["musik", "Stall 6"] }, "indoor"],
     [{ source: "kikuka" as const, kind: "Theatre", title: "Theater im Wald", tags: ["theater"] }, "outdoor"],
     [{ source: "kikuka" as const, kind: "Circus", title: "Zirkusvorstellung", tags: ["zirkus", "Zirkusquartier"] }, "mixed"],
+    [{ source: "freizeit" as const, kind: "Event", title: "Kürbisausstellungen auf den Juckerhöfen", tags: ["Feste"] }, "outdoor"],
+    [{ source: "zuerich" as const, kind: "Swimming", title: "Hallenbad City", setting: "indoor" as const }, "indoor"],
   ])("%o → %s", (a, setting) => {
     expect(settingFromText(a)).toBe(setting);
   });
