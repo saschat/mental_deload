@@ -336,9 +336,10 @@ export const useDataStore = defineStore("data", () => {
 
   // Idea marks
   /** Mark an idea as a favourite or not relevant; null removes the mark. */
-  async function setIdeaMark(activity: { id: string; title: string }, mark: IdeaMark["mark"] | null) {
+  async function setIdeaMark(activity: { id: string; title: string; also?: { id: string }[] }, mark: IdeaMark["mark"] | null) {
     guard();
-    const existing = ideaMarksByActivity.value.get(activity.id);
+    // A mark may sit on another source's listing of the same idea.
+    const existing = [activity, ...(activity.also ?? [])].map((l) => ideaMarksByActivity.value.get(l.id)).find(Boolean);
     if (!mark) {
       if (existing) await remove(col.ideaMarks, ideaMarks, existing.id);
       return;

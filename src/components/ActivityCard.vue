@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
-import { ageLabel, hikeLine, SOURCE_NAMES, seasonLabel, travelMinutes, type Activity, type ActivityDate } from "@/core/activities";
+import { ageLabel, hikeLine, SOURCE_NAMES, SOURCE_SHORT_NAMES, seasonLabel, travelMinutes, type Activity, type ActivityDate } from "@/core/activities";
 import { formatDate } from "@/core/dates";
 
 const props = defineProps<{
@@ -112,7 +112,16 @@ const weekly = computed(() => {
       <span v-for="f in facts" :key="f" class="tag">{{ f }}</span>
     </div>
     <div class="row foot">
-      <span class="source small muted">{{ SOURCE_NAMES[activity.source] }}</span>
+      <span class="source small muted">
+        {{ SOURCE_NAMES[activity.source] }}
+        <template v-if="activity.also?.length">
+          · also on
+          <template v-for="(l, i) in activity.also" :key="l.id"
+            ><template v-if="i">, </template
+            ><a :href="l.url" target="_blank" rel="noopener noreferrer" :title="l.title">{{ SOURCE_SHORT_NAMES[l.source] }}</a></template
+          >
+        </template>
+      </span>
       <span class="spacer" />
       <button v-if="markable" class="hide small" @click="emit('mark', mark === 'hidden' ? null : 'hidden')">
         {{ mark === "hidden" ? "Show again" : "Not relevant" }}
@@ -173,6 +182,9 @@ const weekly = computed(() => {
 }
 .source {
   font-size: 11px;
+}
+.source a {
+  color: inherit;
 }
 .hide {
   border: 0;

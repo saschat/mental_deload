@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 
 import type { Activity, ActivityIndex, ActivitySourceId, ActivitySourceInfo } from "../../src/core/activities.ts";
 import { categorize, settingFromText } from "../../src/core/categories.ts";
+import { findDuplicates } from "../../src/core/duplicates.ts";
 import { climateFor } from "./climate.ts";
 import { emptyState, type Context, type CrawlState, type Source } from "./context.ts";
 import { familienausflug } from "./familienausflug.ts";
@@ -122,7 +123,13 @@ async function main() {
     a.category = categorize(a);
     a.setting = settingFromText(a);
     if (!a.setting) delete a.setting;
+    delete a.duplicateOf;
   }
+  // The same place or event from several sources: the app shows one entry (see mergeDuplicates).
+  const byId = new Map(final.map((a) => [a.id, a]));
+  const duplicates = findDuplicates(final);
+  for (const [id, head] of duplicates) byId.get(id)!.duplicateOf = head;
+  log(`${duplicates.size} listings are duplicates of ${new Set(duplicates.values()).size} others`);
   for (const info of infos) {
     const mine = final.filter((a) => a.source === info.id);
     info.count = mine.length;

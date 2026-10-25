@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
-import type { ActivityIndex } from "@/core/activities";
+import { mergeDuplicates, type ActivityIndex } from "@/core/activities";
 import { ACTIVITIES_KEY, idbGet, idbSet } from "@/lib/idb";
 
 /**
@@ -32,7 +32,8 @@ export const useActivitiesStore = defineStore("activities", () => {
   let checkedThisRun = false;
   let pending: Promise<void> | null = null;
 
-  const activities = computed(() => index.value?.activities ?? []);
+  /** One entry per place or event, with the other sources' listings folded in. */
+  const activities = computed(() => mergeDuplicates(index.value?.activities ?? []));
 
   async function hydrate() {
     const cached = await idbGet<Cached>(ACTIVITIES_KEY).catch(() => undefined);

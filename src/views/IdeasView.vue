@@ -11,6 +11,7 @@ import {
   CATEGORIES,
   feedKey,
   findIdeas,
+  listings,
   SOURCE_SHORT_NAMES,
   type Activity,
   type ActivityCategory,
@@ -87,10 +88,12 @@ const hiddenMarks = computed(() => data.ideaMarks.filter((m) => m.mark === "hidd
 const showHidden = ref(false);
 
 function markOf(a: Activity) {
-  return data.ideaMarksByActivity.get(a.id)?.mark;
+  return listings(a)
+    .map((l) => data.ideaMarksByActivity.get(l.id)?.mark)
+    .find(Boolean);
 }
 
-function setMark(a: { id: string; title: string }, mark: "favorite" | "hidden" | null) {
+function setMark(a: { id: string; title: string; also?: { id: string }[] }, mark: "favorite" | "hidden" | null) {
   ui.run(() => data.setIdeaMark(a, mark), mark === "hidden" ? `Hid ${a.title}` : undefined);
 }
 
@@ -116,17 +119,18 @@ function filterIdeas(all: Ideas, keep: (a: Activity) => boolean): Ideas {
   };
 }
 const inCategory = (a: Activity) => !selectedCategories.value.length || selectedCategories.value.includes(activityCategory(a));
-const inSource = (a: Activity) => !excludedSources.value.includes(a.source);
+const inSource = (a: Activity) => listings(a).some((l) => !excludedSources.value.includes(l.source));
 
-function countBy<K extends string>(ideas: Ideas, key: (a: Activity) => K): Partial<Record<K, number>> {
+function countBy<K extends string>(ideas: Ideas, keys: (a: Activity) => K[]): Partial<Record<K, number>> {
   const counts: Partial<Record<K, number>> = {};
   for (const a of [...ideas.dated.map((d) => d.activity), ...ideas.weekly.map((d) => d.activity), ...ideas.places]) {
-    counts[key(a)] = (counts[key(a)] ?? 0) + 1;
+    for (const k of new Set(keys(a))) counts[k] = (counts[k] ?? 0) + 1;
   }
   return counts;
 }
-const categoryCounts = computed(() => countBy(filterIdeas(allIdeas.value, inSource), activityCategory));
-const sourceCounts = computed(() => countBy(filterIdeas(allIdeas.value, inCategory), (a) => a.source));
+const categoryCounts = computed(() => countBy(filterIdeas(allIdeas.value, inSource), (a) => [activityCategory(a)]));
+/** An idea several sources list counts for each. */
+const sourceCounts = computed(() => countBy(filterIdeas(allIdeas.value, inCategory), (a) => listings(a).map((l) => l.source)));
 const ideas = computed(() => filterIdeas(allIdeas.value, (a) => inCategory(a) && inSource(a)));
 
 const categoryChips = computed(() =>
@@ -206,6 +210,10 @@ const planned = computed(() => {
   }
   return out;
 });
+/** Planned under its own title or another source's. */
+function plannedOn(a: Activity): string | undefined {
+  return [a.title, ...(a.also ?? []).map((l) => l.title)].map((t) => planned.value.get(t)).find(Boolean);
+}
 const addTo = computed(() => (data.readOnly ? undefined : target.value.title));
 const adding = ref<{ activity: Activity; dates?: ActivityDate[] } | null>(null);
 const addingTypical = computed(() => (adding.value ? typical(adding.value.activity) : undefined));
@@ -299,7 +307,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           :activity="d.activity"
           :dates="d.dates"
           :add-to="addTo"
-          :planned="planned.get(d.activity.title)"
+          :planned="plannedOn(d.activity)"
           :mark="markOf(d.activity)"
           :markable="!data.readOnly"
           @add="adding = { activity: d.activity, dates: d.dates }"
@@ -318,7 +326,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           :activity="a"
           :typical="typical(a)"
           :add-to="addTo"
-          :planned="planned.get(a.title)"
+          :planned="plannedOn(a)"
           :mark="markOf(a)"
           :markable="!data.readOnly"
           @add="adding = { activity: a }"

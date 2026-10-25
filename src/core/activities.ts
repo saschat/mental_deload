@@ -8,6 +8,7 @@
 import { addDays, weekday } from "./dates";
 import { categorize, type ActivityCategory } from "./categories";
 import type { CellClimate } from "./climate";
+import { SOURCE_RANK } from "./duplicates";
 export { distanceKm, ZURICH_HB } from "./geo";
 export { CATEGORIES, categorize, settingFromText, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
@@ -32,6 +33,15 @@ export interface Hike {
   downM?: number;
   /** "easy", "moderate", "T3" … as the source wrote it. */
   skill?: string;
+}
+
+/** Another source's listing of the same place or event. */
+export interface ActivityListing {
+  id: string;
+  source: ActivitySourceId;
+  feed?: string;
+  title: string;
+  url: string;
 }
 
 export interface Activity {
@@ -75,6 +85,14 @@ export interface Activity {
   weekdays?: number[];
   booking?: "required" | "drop-in" | "closed";
   tags?: string[];
+  /**
+   * Set by the indexer when another source lists the same thing: the id of
+   * the listing shown for both (see findDuplicates). mergeDuplicates folds
+   * this one into it.
+   */
+  duplicateOf?: string;
+  /** Other sources listing it, set by mergeDuplicates. */
+  also?: ActivityListing[];
 }
 
 export interface ActivitySourceInfo {
@@ -207,15 +225,77 @@ export function matchesSetting(a: Activity, filter: SettingFilter): boolean {
 }
 
 
+/** Fields a merged entry takes from another listing when its own listing lacks them. */
+const FILLED = ["place", "setting", "carMin", "transitMin", "altitudeM", "hike", "stroller", "months", "costChf", "booking"] as const;
+
+function rank(source: string): number {
+  const i = SOURCE_RANK.indexOf(source);
+  return i === -1 ? SOURCE_RANK.length : i;
+}
+
+function merge(head: Activity, others: Activity[]): Activity {
+  const out: Activity = { ...head };
+  const sorted = [...others].sort((x, y) => rank(x.source) - rank(y.source));
+  for (const o of sorted) {
+    for (const k of FILLED) if (out[k] === undefined && o[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = o[k];
+    // Ages go together: one source's minimum with another's maximum would be a range neither states.
+    if (out.ageMin === undefined && out.ageMax === undefined && !out.birthYears && (o.ageMin !== undefined || o.ageMax !== undefined || o.birthYears)) {
+      out.ageMin = o.ageMin;
+      out.ageMax = o.ageMax;
+      out.birthYears = o.birthYears;
+    }
+  }
+  const tags = [...new Set([...(head.tags ?? []), ...sorted.flatMap((o) => o.tags ?? [])])];
+  if (tags.length) out.tags = tags;
+  if (head.dates) {
+    const dates = new Map<string, ActivityDate>();
+    for (const d of [head, ...sorted].flatMap((a) => a.dates ?? [])) dates.set(`${d.start}|${d.end ?? ""}|${d.time ?? ""}`, d);
+    out.dates = [...dates.values()].sort((x, y) => x.start.localeCompare(y.start));
+  }
+  out.also = sorted.map((o) => ({ id: o.id, source: o.source, feed: o.feed, title: o.title, url: o.url }));
+  for (const k of Object.keys(out) as (keyof Activity)[]) if (out[k] === undefined) delete out[k];
+  return out;
+}
+
+/**
+ * One entry per place or event: listings the indexer marked as duplicates are
+ * folded into the listing shown for them, which keeps its own title and link,
+ * fills facts it lacks from the others (best-ranked source first) and lists
+ * them in `also`.
+ */
+export function mergeDuplicates(activities: readonly Activity[]): Activity[] {
+  const ids = new Set(activities.map((a) => a.id));
+  const extra = new Map<string, Activity[]>();
+  for (const a of activities) {
+    if (a.duplicateOf && ids.has(a.duplicateOf)) extra.set(a.duplicateOf, [...(extra.get(a.duplicateOf) ?? []), a]);
+  }
+  const out: Activity[] = [];
+  for (const a of activities) {
+    if (a.duplicateOf && ids.has(a.duplicateOf)) continue;
+    const others = extra.get(a.id);
+    out.push(others ? merge(a, others) : a);
+  }
+  return out;
+}
+
+/** The activity's own listing and the other sources' ones. */
+export function listings(a: Activity): { id: string; source: ActivitySourceId; feed?: string }[] {
+  return [a, ...(a.also ?? [])];
+}
+
 /** Settings key that switches off one feed of a source: "gz/gz-witikon". */
 export function feedKey(source: ActivitySourceId, feed: string): string {
   return `${source}/${feed}`;
 }
 
-/** Whether neither the activity's source nor its feed is switched off in Settings. */
+/** Whether one of the sources listing it is on in Settings, with its feed. */
 export function sourceShown(a: Activity, hidden: ReadonlySet<string>): boolean {
-  if (hidden.has(a.source)) return false;
-  return !a.feed || !hidden.has(feedKey(a.source, a.feed));
+  return listings(a).some((l) => !hidden.has(l.source) && (!l.feed || !hidden.has(feedKey(l.source, l.feed))));
+}
+
+/** Whether a mark set on any of its listings applies. */
+export function hasId(a: Activity, ids: ReadonlySet<string> | undefined): boolean {
+  return !!ids && listings(a).some((l) => ids.has(l.id));
 }
 
 export interface IdeaQuery {
@@ -238,7 +318,7 @@ export interface IdeaQuery {
 function matchesText(a: Activity, text: string | undefined): boolean {
   const q = text?.trim().toLowerCase();
   if (!q) return true;
-  const hay = [a.title, a.kind, a.place, ...(a.tags ?? [])].join(" ").toLowerCase();
+  const hay = [a.title, a.kind, a.place, ...(a.tags ?? []), ...(a.also ?? []).map((l) => l.title)].join(" ").toLowerCase();
   return q.split(/\s+/).every((w) => hay.includes(w));
 }
 
@@ -276,7 +356,7 @@ export function findIdeas(activities: readonly Activity[], q: IdeaQuery): Ideas 
   const places: Activity[] = [];
   const hidden = new Set(q.hiddenSources ?? []);
   for (const a of activities) {
-    if (q.hidden?.has(a.id) || !sourceShown(a, hidden) || !matchesCommon(a, q)) continue;
+    if (hasId(a, q.hidden) || !sourceShown(a, hidden) || !matchesCommon(a, q)) continue;
     if (a.dates) {
       const dates = datesInRange(a, q.start, q.end);
       if (dates.length) (a.weekdays?.length ? weekly : dated).push({ activity: a, dates });
@@ -287,7 +367,7 @@ export function findIdeas(activities: readonly Activity[], q: IdeaQuery): Ideas 
   // Offers that happen within the dates (a Saturday event, a camp week) rank
   // above long runs that merely overlap them.
   const within = (d: DatedIdea) => Number(d.dates.some((x) => x.start >= q.start && (x.end ?? x.start) <= q.end));
-  const favorite = (a: Activity) => Number(!!q.favorites?.has(a.id));
+  const favorite = (a: Activity) => Number(hasId(a, q.favorites));
   const byDate = (x: DatedIdea, y: DatedIdea) =>
     favorite(y.activity) - favorite(x.activity) ||
     Number(x.activity.booking === "closed") - Number(y.activity.booking === "closed") ||
