@@ -55,6 +55,16 @@ describe("findDuplicates", () => {
     expect(dups.has("swissfamilyfun:1")).toBe(false);
   });
 
+  it("shows the plain place name rather than one offer there", () => {
+    const dups = groups([
+      at("swissfamilyfun:1", "Sattel Hochstuckli – Engelstock Winter Hike", 47.08, 8.63),
+      at("familienausflug:1", "Sattel-Hochstuckli", 47.0802, 8.6302),
+      at("zuerich:1", "Sattel-Hochstuckli", 47.0801, 8.6301),
+    ]);
+    expect(dups.get("swissfamilyfun:1")).toBe("familienausflug:1");
+    expect(dups.get("zuerich:1")).toBe("familienausflug:1");
+  });
+
   it("matches English titles to German ones written as one word", () => {
     const dups = groups([at("swissfamilyfun:1", "Dinosaur Museum Aathal", 47.33, 8.76), at("freizeit:1", "Sauriermuseum Aathal", 47.3302, 8.7602)]);
     expect(dups.get("freizeit:1")).toBe("swissfamilyfun:1");
@@ -135,6 +145,23 @@ describe("mergeDuplicates", () => {
 
   it("keeps the head's facts and fills the ones it lacks", () => {
     expect(merged[0]).toMatchObject({ months: [9, 10], place: "Seegräben", costChf: 0, ageMin: 2, ageMax: 12, tags: ["Bauernhof"] });
+  });
+
+  it("does not give a place the season of one offer there", () => {
+    const place: Activity = { id: "familienausflug:sattel", source: "familienausflug", title: "Sattel-Hochstuckli", url: "https://fa/sattel", kind: "Mountain" };
+    const hike: Activity = {
+      id: "swissfamilyfun:engelstock",
+      source: "swissfamilyfun",
+      title: "Sattel Hochstuckli – Engelstock Winter Hike",
+      url: "https://sff/engelstock",
+      kind: "Snow",
+      months: [12, 1, 2, 3],
+      costChf: 0,
+      duplicateOf: place.id,
+    };
+    const [m] = mergeDuplicates([place, hike]);
+    expect(m).toMatchObject({ title: "Sattel-Hochstuckli", costChf: 0 });
+    expect(m.months).toBeUndefined();
   });
 
   it("keeps a listing whose head is gone", () => {

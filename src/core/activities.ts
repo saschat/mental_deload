@@ -8,7 +8,7 @@
 import { addDays, weekday } from "./dates";
 import { categorize, type ActivityCategory } from "./categories";
 import type { CellClimate } from "./climate";
-import { SOURCE_RANK } from "./duplicates";
+import { mainTitle, SOURCE_RANK } from "./duplicates";
 export { distanceKm, ZURICH_HB } from "./geo";
 export { CATEGORIES, categorize, settingFromText, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
@@ -227,6 +227,8 @@ export function matchesSetting(a: Activity, filter: SettingFilter): boolean {
 
 /** Fields a merged entry takes from another listing when its own listing lacks them. */
 const FILLED = ["place", "setting", "carMin", "transitMin", "altitudeM", "hike", "stroller", "months", "costChf", "booking"] as const;
+/** Facts of one offer at a place, which the place as a whole does not share. */
+const OFFER_ONLY = new Set<string>(["hike", "months"]);
 
 function rank(source: string): number {
   const i = SOURCE_RANK.indexOf(source);
@@ -237,7 +239,11 @@ function merge(head: Activity, others: Activity[]): Activity {
   const out: Activity = { ...head };
   const sorted = [...others].sort((x, y) => rank(x.source) - rank(y.source));
   for (const o of sorted) {
-    for (const k of FILLED) if (out[k] === undefined && o[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = o[k];
+    // "Sattel Hochstuckli – Engelstock Winter Hike" under "Sattel-Hochstuckli": the mountain is not winter-only.
+    const offer = mainTitle(o.title) !== o.title && mainTitle(head.title) === head.title;
+    for (const k of FILLED) {
+      if (out[k] === undefined && o[k] !== undefined && !(offer && OFFER_ONLY.has(k))) (out as unknown as Record<string, unknown>)[k] = o[k];
+    }
     // Ages go together: one source's minimum with another's maximum would be a range neither states.
     if (out.ageMin === undefined && out.ageMax === undefined && !out.birthYears && (o.ageMin !== undefined || o.ageMax !== undefined || o.birthYears)) {
       out.ageMin = o.ageMin;

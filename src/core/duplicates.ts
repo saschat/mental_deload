@@ -261,7 +261,8 @@ export function matchPairs(listings: readonly Listing[]): Match[] {
 
 /**
  * Groups of listings that are one thing, as listing id → id of the listing
- * shown for the group (the best-ranked source). Pairs join groups best first,
+ * shown for the group: the best-ranked source's, unless its title adds a
+ * subtitle to a name another listing has alone. Pairs join groups best first,
  * and a group holds at most one listing per source, so a chain of loose
  * matches cannot pull two different places of one source together.
  */
@@ -279,7 +280,11 @@ export function findDuplicates(listings: readonly Listing[]): Map<string, string
   const out = new Map<string, string>();
   for (const members of new Set(group.values())) {
     if (members.length < 2) continue;
-    const head = [...members].sort((x, y) => rank(x.source) - rank(y.source) || x.id.localeCompare(y.id))[0];
+    const ranked = [...members].sort((x, y) => rank(x.source) - rank(y.source) || x.id.localeCompare(y.id));
+    // The best listing may be one offer there ("Sattel Hochstuckli – Engelstock Winter Hike"); a listing named just the place shows the place.
+    const plain = words(mainTitle(ranked[0].title)).join(" ");
+    const named = mainTitle(ranked[0].title) !== ranked[0].title && ranked.find((l) => words(l.title).join(" ") === plain);
+    const head = named || ranked[0];
     for (const l of members) if (l !== head) out.set(l.id, head.id);
   }
   return out;
