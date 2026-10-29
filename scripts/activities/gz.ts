@@ -11,8 +11,8 @@ import { between, compactDates, htmlToText, inlineText, iso, parseAges, parseChf
 const BASE = "https://gz-zh.ch";
 /** Offer pages roll their date lists forward, so re-read them monthly even without edits. */
 const MAX_AGE_DAYS = 28;
-/** 2: centre as feed. */
-const VERSION = 2;
+/** 2: centre as feed. 5: untagged offers kept when they name children. */
+const VERSION = 5;
 const WFS =
   "https://www.ogd.stadt-zuerich.ch/wfs/geoportal/Gemeinschaftszentrum?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=poi_gemeinschaftszentrum_view&OUTPUTFORMAT=GeoJSON&SRSNAME=EPSG:4326";
 
@@ -72,9 +72,16 @@ export function parseOffer(html: string): GzOffer {
   return { title, audiences, sparten, dates: compactDates(dates), fields, text: htmlToText(content) };
 }
 
-export function isForKids(offer: Pick<GzOffer, "audiences" | "sparten" | "title">): boolean {
-  if (/für erwachsene|\bab 60\b|senior/i.test(offer.title)) return false;
+/** Untagged offers count when their title names children or a children's festival… */
+const KIDS_TITLE = /kinder|kids|famili|mädchen|buben|jugend|schüler|halloween|grusel|räbeliecht|samichlaus|kasperli|fasnacht|ostereier/i;
+/** …or their text says who they are for ("für Kinder", "Kinder ab 6", "bis 12 Jahre", "5. Klasse"), not just "mit Kinderbetreuung". */
+const KIDS_AUDIENCE =
+  /für (?:kinder|kids|familien|jugendliche|mädchen|buben|schüler)|(?:kinder|jugendliche)n? (?:ab|von|bis|zwischen)\b|\b(?:ab|bis) (?:1[0-8]|[1-9]) jahren?\b|\d{1,2}\.\s*klasse/i;
+
+export function isForKids(offer: Pick<GzOffer, "audiences" | "sparten" | "title"> & { text?: string }): boolean {
+  if (/für (?:erwachsene|frauen|männer)|\bab 60\b|\b[56]0\s*\+|senior|geburt|schwanger|coaching/i.test(offer.title)) return false;
   const a = new Set(offer.audiences);
+  if (!a.size && !offer.sparten.includes("ferienangebote")) return KIDS_TITLE.test(offer.title) || KIDS_AUDIENCE.test(offer.text ?? "");
   return (
     a.has("kinder") || a.has("jugendliche") || offer.sparten.includes("ferienangebote") || (a.has("familien") && !a.has("seniorinnen"))
   );

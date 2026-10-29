@@ -138,6 +138,17 @@ describe("gz", () => {
     expect(isForKids({ audiences: ["kinder"], sparten: [], title: "CreaCafé – für Erwachsene" })).toBe(false);
   });
 
+  it("reads untagged offers for children's words", () => {
+    expect(isForKids({ audiences: [], sparten: [], title: "Gruselpfad an Halloween", text: "Stationen im Quartier" })).toBe(true);
+    expect(isForKids({ audiences: [], sparten: [], title: "Licht und Holz", text: "Für Kinder ab 6 Jahren" })).toBe(true);
+    expect(isForKids({ audiences: [], sparten: ["bewegung-tanz"], title: "Yoga über Mittag für Alle", text: "" })).toBe(false);
+    expect(isForKids({ audiences: [], sparten: [], title: "EVERDANCE 60+", text: "Tanzen für Kinder und Grosseltern" })).toBe(false);
+    expect(isForKids({ audiences: [], sparten: [], title: "Everdance Paartanz allein", text: "Für alle ab 60 Jahren" })).toBe(false);
+    expect(isForKids({ audiences: [], sparten: [], title: "Selbstverteidigung für Frauen", text: "Mit Kinderbetreuung" })).toBe(false);
+    expect(isForKids({ audiences: [], sparten: [], title: "Empathie-Raum", text: "Empathie in Familie und Nachbarschaft" })).toBe(false);
+    expect(isForKids({ audiences: [], sparten: [], title: "Treffpunkt Chaste", text: "für Jugendliche von der 5. Klasse bis 18 Jahre" })).toBe(true);
+  });
+
   it("names centres from their slug", () => {
     expect(centreName("gz-witikon")).toBe("GZ Witikon");
     expect(centreName("gz-hoengg")).toBe("GZ Hoengg");

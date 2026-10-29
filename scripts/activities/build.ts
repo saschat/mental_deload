@@ -45,10 +45,14 @@ function readJson<T>(path: string): T | null {
   }
 }
 
-/** Drop dates that ended before today, and offers left without any. */
+/** Recurring programmes that are not outings, from any source. */
+const NOT_OUTINGS = /^family literacy\b/i;
+
+/** Drop dates that ended before today, offers left without any, and offers that are not outings. */
 function prune(activities: Activity[], today: string): Activity[] {
   const out: Activity[] = [];
   for (const a of activities) {
+    if (NOT_OUTINGS.test(a.title)) continue;
     if (!a.dates) {
       out.push(a);
       continue;
