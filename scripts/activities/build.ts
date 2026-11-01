@@ -45,8 +45,8 @@ function readJson<T>(path: string): T | null {
   }
 }
 
-/** Recurring programmes that are not outings, from any source. */
-const NOT_OUTINGS = /^family literacy\b/i;
+/** Recurring library story sessions, which are not outings, from any source. */
+const NOT_OUTINGS = /^(?:family literacy|geschichtenzeit|ryte,? ryte r(?:ö|oe)ssli|bücherkiste)\b/i;
 
 /** Drop dates that ended before today, offers left without any, and offers that are not outings. */
 function prune(activities: Activity[], today: string): Activity[] {
