@@ -4,7 +4,7 @@ import { bzr } from "@/bazaar";
 import AppIcon from "@/components/AppIcon.vue";
 import KidAvatar from "@/components/KidAvatar.vue";
 import TemplateNodes from "@/components/TemplateNodes.vue";
-import { feedKey, type ActivitySourceInfo } from "@/core/activities";
+import { feedKey, TRAVEL_LIMITS, travelLimitLabel, type ActivitySourceInfo } from "@/core/activities";
 import { CATEGORIES, CATEGORY_LABELS, KID_COLORS, STATUSES, defaultSettings, newId, statusColor, statusLabel } from "@/core/defaults";
 import { buildRemindersIcs } from "@/core/icsExport";
 import type { Category, Kid, Settings, StatusKey } from "@/core/types";
@@ -123,6 +123,15 @@ function resetTemplates() {
 }
 
 //
+// Usual travel time for ideas (part of the settings draft); 0 in the select is any distance.
+const ideasMaxMinutes = computed({
+  get: () => draft.ideasMaxMinutes ?? 0,
+  set: (m: number) => {
+    if (m) draft.ideasMaxMinutes = m;
+    else delete draft.ideasMaxMinutes;
+  },
+});
+
 // Idea sources (part of the settings draft)
 //
 const ideaSources = computed(() => activities.index?.sources ?? []);
@@ -322,9 +331,17 @@ async function logout() {
         /></label>
       </div>
 
-      <h2 id="idea-sources">Idea sources</h2>
+      <h2 id="idea-sources">Ideas</h2>
       <div class="card">
-        <p class="small muted" style="margin-top: 0">What the Ideas page shows. Counts are current entries in the index.</p>
+        <label class="field" style="max-width: 260px"
+          ><span>Usual travel time</span>
+          <select v-model.number="ideasMaxMinutes" class="input">
+            <option :value="0">Any distance</option>
+            <option v-for="m in TRAVEL_LIMITS" :key="m" :value="m">{{ travelLimitLabel(m) }} by car</option>
+          </select>
+        </label>
+        <p class="small muted">The Ideas page starts with this limit; change it there for one look.</p>
+        <p class="small muted">Sources the Ideas page shows. Counts are current entries in the index.</p>
         <p v-if="!ideaSources.length" class="small muted" style="margin: 0">
           {{ activities.loading ? "Loading sources…" : (activities.error ?? "The activity index isn't available yet.") }}
         </p>

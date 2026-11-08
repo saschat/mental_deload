@@ -160,6 +160,8 @@ export interface Settings {
    * one feed of a source ("gz/gz-witikon").
    */
   hiddenIdeaSources: string[];
+  /** Travel limit the Ideas page starts with, in minutes; unset = any distance. */
+  ideasMaxMinutes?: number;
   /** Default-template additions already merged into `templates` (see TEMPLATES_REV). */
   templatesRev?: number;
 }

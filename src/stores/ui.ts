@@ -30,6 +30,8 @@ export const useUiStore = defineStore("ui", () => {
   const newReminders = ref<Reminder[]>([]);
   /** Ideas page: whether "On these dates" is expanded, kept while the app is open. */
   const ideasDatedOpen = ref(true);
+  /** Ideas page: whether the full list below the picks is open. */
+  const ideasBrowseOpen = ref(false);
 
   function toast(text: string, kind: Toast["kind"] = "info", ms = 3500) {
     const id = ++toastId;
@@ -79,5 +81,5 @@ export const useUiStore = defineStore("ui", () => {
     }
   }
 
-  return { toasts, dialog, newReminders, ideasDatedOpen, toast, error, ask, confirm, run };
+  return { toasts, dialog, newReminders, ideasDatedOpen, ideasBrowseOpen, toast, error, ask, confirm, run };
 });

@@ -13,6 +13,8 @@ import {
   findIdeas,
   listings,
   SOURCE_SHORT_NAMES,
+  TRAVEL_LIMITS,
+  travelLimitLabel,
   type Activity,
   type ActivityCategory,
   type ActivityDate,
@@ -23,6 +25,7 @@ import {
 import { climateCell, typicalWeather } from "@/core/climate";
 import { formatDate } from "@/core/dates";
 import { ideaTargets, resolveTarget, type IdeaTarget } from "@/core/ideaTargets";
+import { pickIdeas, rememberPicks, shownBefore, type PickHistory } from "@/core/picks";
 import { useActivitiesStore } from "@/stores/activities";
 import { useDataStore } from "@/stores/data";
 import { useUiStore } from "@/stores/ui";
@@ -56,12 +59,10 @@ function toggleSetting(s: SettingFilter) {
   setting.value = setting.value === s ? "any" : s;
 }
 
-const TRAVEL = [
-  { label: "≤ 30 min", value: 30 },
-  { label: "≤ 1 h", value: 60 },
-  { label: "≤ 2 h", value: 120 },
-] as const;
-const maxMinutes = ref<number | null>(null);
+// Travel time starts at the usual limit from Settings.
+const defaultMinutes = computed(() => data.settings.ideasMaxMinutes ?? null);
+const maxMinutes = ref<number | null>(defaultMinutes.value);
+watch(defaultMinutes, (m) => (maxMinutes.value = m));
 
 const selectedCategories = ref<ActivityCategory[]>([]);
 const excludedSources = ref<ActivitySourceId[]>([]);
@@ -191,6 +192,56 @@ function clearGroup(group: FilterGroup) {
   else excludedSources.value = [];
 }
 
+// Picks: a few ideas to look at first; the full list opens below them.
+const PICK_HISTORY_KEY = "ideas.pickHistory";
+function readPickHistory(): PickHistory {
+  try {
+    return JSON.parse(localStorage.getItem(PICK_HISTORY_KEY) ?? "{}") as PickHistory;
+  } catch {
+    return {};
+  }
+}
+let pickHistory = readPickHistory();
+const rain = computed(() =>
+  isWeekend.value ? weather.forEvent({ category: "weekend", start: target.value.start, end: target.value.end }, data.today)?.rainProbability : undefined,
+);
+const picks = computed(() =>
+  pickIdeas(ideas.value, {
+    start: target.value.start,
+    end: target.value.end,
+    rain: rain.value,
+    favorites: favoriteIds.value,
+    shownBefore: shownBefore(pickHistory, target.value.start),
+  }),
+);
+/** Filters as they start, so picks shown while browsing other filters aren't remembered. */
+const unfiltered = computed(
+  () =>
+    setting.value === "any" &&
+    maxMinutes.value === defaultMinutes.value &&
+    !selectedCategories.value.length &&
+    !excludedSources.value.length &&
+    !text.value.trim(),
+);
+watch(picks, (p) => {
+  if (!store.index || !p.length || !unfiltered.value) return;
+  pickHistory = rememberPicks(
+    pickHistory,
+    target.value.start,
+    p.map((x) => x.activity.id),
+    data.today,
+  );
+  try {
+    localStorage.setItem(PICK_HISTORY_KEY, JSON.stringify(pickHistory));
+  } catch {
+    // Private mode or storage blocked: picks just don't rotate.
+  }
+});
+/** A search shows its results straight away instead of picks. */
+const searching = computed(() => text.value.trim() !== "");
+const listOpen = computed(() => ui.ideasBrowseOpen || searching.value);
+const total = computed(() => ideas.value.dated.length + ideas.value.places.length);
+
 const datedShown = ref(PAGE);
 const placesShown = ref(PAGE);
 watch(ideas, () => {
@@ -275,13 +326,13 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           </div>
           <div class="chips wrap">
             <button
-              v-for="t in TRAVEL"
-              :key="t.label"
+              v-for="m in TRAVEL_LIMITS"
+              :key="m"
               class="chip"
-              :class="{ selected: maxMinutes === t.value }"
-              @click="maxMinutes = maxMinutes === t.value ? null : t.value"
+              :class="{ selected: maxMinutes === m }"
+              @click="maxMinutes = maxMinutes === m ? null : m"
             >
-              {{ t.label }}
+              {{ travelLimitLabel(m) }}
             </button>
           </div>
         </template>
@@ -330,50 +381,73 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
     </div>
 
     <template v-else>
-      <section v-if="ideas.dated.length">
-        <h2>
-          <button class="section-toggle" :aria-expanded="ui.ideasDatedOpen" @click="ui.ideasDatedOpen = !ui.ideasDatedOpen">
-            On these dates · {{ ideas.dated.length }}
-            <AppIcon name="chevron" :size="18" class="chev" :class="{ up: ui.ideasDatedOpen }" />
-          </button>
-        </h2>
-        <template v-if="ui.ideasDatedOpen">
-          <ActivityCard
-            v-for="d in ideas.dated.slice(0, datedShown)"
-            :key="d.activity.id"
-            :activity="d.activity"
-            :dates="d.dates"
-            :add-to="addTo"
-            :planned="plannedOn(d.activity)"
-            :mark="markOf(d.activity)"
-            :markable="!data.readOnly"
-            @add="adding = { activity: d.activity, dates: d.dates }"
-            @mark="(m) => setMark(d.activity, m)"
-          />
-          <button v-if="ideas.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
-            Show more ({{ ideas.dated.length - datedShown }})
-          </button>
-        </template>
-      </section>
-
-      <section v-if="ideas.places.length">
-        <h2>Places · {{ ideas.places.length }}</h2>
+      <section v-if="picks.length && !searching">
+        <h2>Picks</h2>
         <ActivityCard
-          v-for="a in ideas.places.slice(0, placesShown)"
-          :key="a.id"
-          :activity="a"
-          :typical="typical(a)"
+          v-for="p in picks"
+          :key="p.activity.id"
+          :activity="p.activity"
+          :dates="p.dates"
+          :typical="p.dates ? undefined : typical(p.activity)"
           :add-to="addTo"
-          :planned="plannedOn(a)"
-          :mark="markOf(a)"
+          :planned="plannedOn(p.activity)"
+          :mark="markOf(p.activity)"
           :markable="!data.readOnly"
-          @add="adding = { activity: a }"
-          @mark="(m) => setMark(a, m)"
+          @add="adding = { activity: p.activity, dates: p.dates }"
+          @mark="(m) => setMark(p.activity, m)"
         />
-        <button v-if="ideas.places.length > placesShown" class="btn text more" @click="placesShown += PAGE">
-          Show more ({{ ideas.places.length - placesShown }})
+        <button class="btn tonal browse" :aria-expanded="ui.ideasBrowseOpen" @click="ui.ideasBrowseOpen = !ui.ideasBrowseOpen">
+          {{ ui.ideasBrowseOpen ? "Hide the full list" : `Browse all ${total}` }}
+          <AppIcon name="chevron" :size="18" class="chev" :class="{ up: ui.ideasBrowseOpen }" />
         </button>
       </section>
+
+      <template v-if="listOpen || !picks.length">
+        <section v-if="ideas.dated.length">
+          <h2>
+            <button class="section-toggle" :aria-expanded="ui.ideasDatedOpen" @click="ui.ideasDatedOpen = !ui.ideasDatedOpen">
+              On these dates · {{ ideas.dated.length }}
+              <AppIcon name="chevron" :size="18" class="chev" :class="{ up: ui.ideasDatedOpen }" />
+            </button>
+          </h2>
+          <template v-if="ui.ideasDatedOpen">
+            <ActivityCard
+              v-for="d in ideas.dated.slice(0, datedShown)"
+              :key="d.activity.id"
+              :activity="d.activity"
+              :dates="d.dates"
+              :add-to="addTo"
+              :planned="plannedOn(d.activity)"
+              :mark="markOf(d.activity)"
+              :markable="!data.readOnly"
+              @add="adding = { activity: d.activity, dates: d.dates }"
+              @mark="(m) => setMark(d.activity, m)"
+            />
+            <button v-if="ideas.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
+              Show more ({{ ideas.dated.length - datedShown }})
+            </button>
+          </template>
+        </section>
+
+        <section v-if="ideas.places.length">
+          <h2>Places · {{ ideas.places.length }}</h2>
+          <ActivityCard
+            v-for="a in ideas.places.slice(0, placesShown)"
+            :key="a.id"
+            :activity="a"
+            :typical="typical(a)"
+            :add-to="addTo"
+            :planned="plannedOn(a)"
+            :mark="markOf(a)"
+            :markable="!data.readOnly"
+            @add="adding = { activity: a }"
+            @mark="(m) => setMark(a, m)"
+          />
+          <button v-if="ideas.places.length > placesShown" class="btn text more" @click="placesShown += PAGE">
+            Show more ({{ ideas.places.length - placesShown }})
+          </button>
+        </section>
+      </template>
 
       <div v-if="!ideas.dated.length && !ideas.places.length" class="empty">
         <div class="big">🔍</div>
@@ -586,5 +660,12 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
 .more {
   display: flex;
   margin: 0 auto 10px;
+}
+.browse {
+  display: flex;
+  margin: 4px auto 16px;
+}
+.browse .chev.up {
+  transform: rotate(-90deg);
 }
 </style>

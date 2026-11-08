@@ -11,6 +11,7 @@ import {
   monthsInRange,
   seasonLabel,
   sourceShown,
+  travelLimitLabel,
   travelMinutes,
   weekendFrom,
   type Activity,
@@ -209,5 +210,14 @@ describe("settingFromText", () => {
 
   it("leaves unknown entries open and ignores values from earlier runs", () => {
     expect(settingFromText({ source: "gz", kind: "Offer", title: "Unser Quartier im Blick", setting: "outdoor" })).toBeUndefined();
+  });
+});
+
+describe("travelLimitLabel", () => {
+  it("writes minutes under an hour and hours with halves", () => {
+    expect(travelLimitLabel(45)).toBe("≤ 45 min");
+    expect(travelLimitLabel(60)).toBe("≤ 1 h");
+    expect(travelLimitLabel(90)).toBe("≤ 1½ h");
+    expect(travelLimitLabel(120)).toBe("≤ 2 h");
   });
 });

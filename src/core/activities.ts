@@ -164,6 +164,16 @@ export function travelMinutes(a: Activity): { minutes: number; estimated: boolea
 }
 
 /** Months (1–12) touched by an inclusive date range. */
+/** Travel limits offered on the Ideas page and in Settings, in minutes. */
+export const TRAVEL_LIMITS = [30, 45, 60, 90, 120] as const;
+
+/** "≤ 45 min", "≤ 1½ h". */
+export function travelLimitLabel(minutes: number): string {
+  if (minutes < 60) return `≤ ${minutes} min`;
+  const h = minutes / 60;
+  return `≤ ${Number.isInteger(h) ? h : `${Math.floor(h)}½`} h`;
+}
+
 export function monthsInRange(start: ISODate, end: ISODate): number[] {
   const out = new Set<number>();
   const [sy, sm] = start.split("-").map(Number);
