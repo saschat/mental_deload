@@ -29,6 +29,7 @@ export const SOURCE_RANK = [
   "familienausflug",
   "zuerich",
   "myswitzerland",
+  "kinderregion",
   "kikuka",
   "gz",
   "freizeit",

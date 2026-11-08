@@ -13,7 +13,7 @@ export { distanceKm, ZURICH_HB } from "./geo";
 export { CATEGORIES, categorize, settingFromText, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
 
-export type ActivitySourceId = "swissfamilyfun" | "familienausflug" | "osm" | "gz" | "sportamt" | "ferienplausch" | "kikuka" | "zuerich" | "freizeit" | "zuerioberland" | "myswitzerland";
+export type ActivitySourceId = "swissfamilyfun" | "familienausflug" | "osm" | "gz" | "sportamt" | "ferienplausch" | "kikuka" | "zuerich" | "freizeit" | "zuerioberland" | "myswitzerland" | "kinderregion";
 
 export type Setting = "indoor" | "outdoor" | "mixed";
 
@@ -134,6 +134,7 @@ export const SOURCE_SHORT_NAMES: Record<ActivitySourceId, string> = {
   freizeit: "freizeit.ch",
   zuerioberland: "Zürioberland",
   myswitzerland: "MySwitzerland",
+  kinderregion: "Kinderregion",
 };
 
 export const SOURCE_NAMES: Record<ActivitySourceId, string> = {
@@ -148,6 +149,7 @@ export const SOURCE_NAMES: Record<ActivitySourceId, string> = {
   freizeit: "freizeit.ch",
   zuerioberland: "Zürioberland Tourismus",
   myswitzerland: "MySwitzerland (Schweiz Tourismus)",
+  kinderregion: "Kinderregion",
 };
 
 /**
@@ -321,10 +323,15 @@ export interface IdeaQuery {
   hidden?: ReadonlySet<string>;
 }
 
+/** Lower case without accents: "Zürich" → "zurich". */
+const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
 function matchesText(a: Activity, text: string | undefined): boolean {
-  const q = text?.trim().toLowerCase();
+  const q = text ? fold(text.trim()) : "";
   if (!q) return true;
-  const hay = [a.title, a.kind, a.place, ...(a.tags ?? []), ...(a.also ?? []).map((l) => l.title)].join(" ").toLowerCase();
+  const words = [a.title, a.kind, a.place, ...(a.tags ?? []), ...(a.also ?? []).map((l) => l.title)].join(" ").toLowerCase();
+  // Both spellings, so "zurich", "zürich" and "zuerich" all match.
+  const hay = `${fold(words)} ${words.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")}`;
   return q.split(/\s+/).every((w) => hay.includes(w));
 }
 

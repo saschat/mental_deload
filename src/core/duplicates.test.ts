@@ -174,5 +174,7 @@ describe("mergeDuplicates", () => {
     const q = { start: "2026-10-17", end: "2026-10-18", setting: "any" as const, maxMinutes: null, birthYears: [] };
     expect(findIdeas(merged, { ...q, hidden: new Set(["freizeit:1"]) }).places).toEqual([]);
     expect(findIdeas(merged, { ...q, text: "juckerhof" }).places).toHaveLength(1);
+    expect(findIdeas(merged, { ...q, text: "Seegraben" }).places).toHaveLength(1);
+    expect(findIdeas(merged, { ...q, text: "seegraeben" }).places).toHaveLength(1);
   });
 });

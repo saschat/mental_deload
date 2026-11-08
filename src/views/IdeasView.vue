@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ActivityCard from "@/components/ActivityCard.vue";
 import AddActivitySheet from "@/components/AddActivitySheet.vue";
@@ -72,6 +72,15 @@ function toggle<T>(list: T[], value: T): T[] {
 /** The filter tab whose chips are showing; null when all are closed. */
 const openFilter = ref<FilterGroup | null>(null);
 
+/** Search words; the field only shows while its tab is open, the tab stays lit while it filters. */
+const text = ref("");
+const searchInput = ref<HTMLInputElement | null>(null);
+watch(openFilter, async (open) => {
+  if (open !== "search") return;
+  await nextTick();
+  searchInput.value?.focus();
+});
+
 /** Kids the target is for, matched by birth year. */
 const birthYears = computed(() => {
   const event = target.value.eventId ? data.eventsById.get(target.value.eventId) : undefined;
@@ -108,6 +117,7 @@ const allIdeas = computed(() =>
     hiddenSources: hiddenSources.value,
     favorites: favoriteIds.value,
     hidden: hiddenIds.value,
+    text: text.value,
   }),
 );
 
@@ -145,13 +155,14 @@ const sourceChips = computed(() =>
   }),
 );
 
-type FilterGroup = "general" | "type" | "source";
+type FilterGroup = "general" | "type" | "source" | "search";
 
 /** How many filters each tab has set, shown as a badge so a closed tab still tells. */
 const activeCounts = computed<Record<FilterGroup, number>>(() => ({
   general: Number(setting.value !== "any") + Number(maxMinutes.value !== null),
   type: selectedCategories.value.length,
   source: sourceChips.value.filter((c) => excludedSources.value.includes(c.id)).length,
+  search: Number(text.value.trim() !== ""),
 }));
 
 /** Badge per tab: filters set, except Source, which counts the sources still shown. */
@@ -166,6 +177,7 @@ const filterTabs = computed(() =>
       { id: "general", label: "General" },
       { id: "type", label: "Type" },
       { id: "source", label: "Source" },
+      { id: "search", label: "Search" },
     ] as const
   ).filter((t) => t.id !== "source" || sourceChips.value.length > 1),
 );
@@ -175,6 +187,7 @@ function clearGroup(group: FilterGroup) {
     setting.value = "any";
     maxMinutes.value = null;
   } else if (group === "type") selectedCategories.value = [];
+  else if (group === "search") text.value = "";
   else excludedSources.value = [];
 }
 
@@ -239,12 +252,19 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           class="filter-tab"
           role="tab"
           :aria-selected="openFilter === t.id"
-          :class="{ open: openFilter === t.id, active: activeCounts[t.id] > 0 }"
+          :class="{ open: openFilter === t.id, active: activeCounts[t.id] > 0, icon: t.id === 'search' }"
+          :aria-label="t.id === 'search' ? (text.trim() ? `Search: ${text.trim()}` : 'Search') : undefined"
           @click="openFilter = openFilter === t.id ? null : t.id"
         >
-          <span>{{ t.label }}</span>
-          <span v-if="t.id === 'source' || badges[t.id]" class="badge">{{ badges[t.id] }}</span>
-          <AppIcon name="chevron" :size="16" class="chev" />
+          <template v-if="t.id === 'search'">
+            <AppIcon name="search" :size="20" />
+            <span v-if="badges.search" class="dot" />
+          </template>
+          <template v-else>
+            <span>{{ t.label }}</span>
+            <span v-if="t.id === 'source' || badges[t.id]" class="badge">{{ badges[t.id] }}</span>
+            <AppIcon name="chevron" :size="16" class="chev" />
+          </template>
         </button>
       </div>
       <div v-if="openFilter" class="filter-body" role="tabpanel">
@@ -265,6 +285,17 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
             </button>
           </div>
         </template>
+        <input
+          v-else-if="openFilter === 'search'"
+          ref="searchInput"
+          v-model="text"
+          class="input search"
+          type="search"
+          enterkeyhint="search"
+          placeholder="Search: zoo, sledding, Witikon…"
+          aria-label="Search ideas"
+          @keydown.enter="openFilter = null"
+        />
         <div v-else-if="openFilter === 'type'" class="chips wrap">
           <button
             v-for="c in categoryChips"
@@ -276,7 +307,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
             {{ c.label }} <span class="count">{{ categoryCounts[c.id] ?? 0 }}</span>
           </button>
         </div>
-        <div v-else class="chips wrap">
+        <div v-else-if="openFilter === 'source'" class="chips wrap">
           <button
             v-for="s in sourceChips"
             :key="s.id"
@@ -287,7 +318,7 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
             {{ SOURCE_SHORT_NAMES[s.id] }} <span class="count">{{ sourceCounts[s.id] ?? 0 }}</span>
           </button>
         </div>
-        <button v-if="activeCounts[openFilter]" class="btn text clear" @click="clearGroup(openFilter)">Clear</button>
+        <button v-if="openFilter !== 'search' && activeCounts[openFilter]" class="btn text clear" @click="clearGroup(openFilter)">Clear</button>
       </div>
     </div>
 
@@ -300,22 +331,29 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
 
     <template v-else>
       <section v-if="ideas.dated.length">
-        <h2>On these dates · {{ ideas.dated.length }}</h2>
-        <ActivityCard
-          v-for="d in ideas.dated.slice(0, datedShown)"
-          :key="d.activity.id"
-          :activity="d.activity"
-          :dates="d.dates"
-          :add-to="addTo"
-          :planned="plannedOn(d.activity)"
-          :mark="markOf(d.activity)"
-          :markable="!data.readOnly"
-          @add="adding = { activity: d.activity, dates: d.dates }"
-          @mark="(m) => setMark(d.activity, m)"
-        />
-        <button v-if="ideas.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
-          Show more ({{ ideas.dated.length - datedShown }})
-        </button>
+        <h2>
+          <button class="section-toggle" :aria-expanded="ui.ideasDatedOpen" @click="ui.ideasDatedOpen = !ui.ideasDatedOpen">
+            On these dates · {{ ideas.dated.length }}
+            <AppIcon name="chevron" :size="18" class="chev" :class="{ up: ui.ideasDatedOpen }" />
+          </button>
+        </h2>
+        <template v-if="ui.ideasDatedOpen">
+          <ActivityCard
+            v-for="d in ideas.dated.slice(0, datedShown)"
+            :key="d.activity.id"
+            :activity="d.activity"
+            :dates="d.dates"
+            :add-to="addTo"
+            :planned="plannedOn(d.activity)"
+            :mark="markOf(d.activity)"
+            :markable="!data.readOnly"
+            @add="adding = { activity: d.activity, dates: d.dates }"
+            @mark="(m) => setMark(d.activity, m)"
+          />
+          <button v-if="ideas.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
+            Show more ({{ ideas.dated.length - datedShown }})
+          </button>
+        </template>
       </section>
 
       <section v-if="ideas.places.length">
@@ -469,6 +507,39 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
   transition: transform 0.15s;
 }
 .filter-tab.open .chev {
+  transform: rotate(-90deg);
+}
+.filter-tab.icon {
+  flex: 0 0 48px;
+  position: relative;
+}
+.dot {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.search {
+  width: 100%;
+  margin-bottom: 4px;
+}
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.section-toggle .chev.up {
   transform: rotate(-90deg);
 }
 .filter-body {

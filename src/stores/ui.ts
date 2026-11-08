@@ -28,6 +28,8 @@ export const useUiStore = defineStore("ui", () => {
   const toasts = ref<Toast[]>([]);
   const dialog = ref<DialogRequest | null>(null);
   const newReminders = ref<Reminder[]>([]);
+  /** Ideas page: whether "On these dates" is expanded, kept while the app is open. */
+  const ideasDatedOpen = ref(true);
 
   function toast(text: string, kind: Toast["kind"] = "info", ms = 3500) {
     const id = ++toastId;
@@ -77,5 +79,5 @@ export const useUiStore = defineStore("ui", () => {
     }
   }
 
-  return { toasts, dialog, newReminders, toast, error, ask, confirm, run };
+  return { toasts, dialog, newReminders, ideasDatedOpen, toast, error, ask, confirm, run };
 });

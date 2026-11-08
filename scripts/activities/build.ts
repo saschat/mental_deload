@@ -28,8 +28,9 @@ import { sportamt } from "./sportamt.ts";
 import { swissfamilyfun } from "./swissfamilyfun.ts";
 import { zuerich } from "./zuerich.ts";
 import { zuerioberland } from "./zuerioberland.ts";
+import { kinderregion } from "./kinderregion.ts";
 
-const SOURCES: Source[] = [swissfamilyfun, familienausflug, osm, gz, sportamt, ferienplausch, kikuka, zuerich, freizeit, zuerioberland, myswitzerland];
+const SOURCES: Source[] = [swissfamilyfun, familienausflug, osm, gz, sportamt, ferienplausch, kikuka, zuerich, freizeit, zuerioberland, myswitzerland, kinderregion];
 
 function arg(name: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));

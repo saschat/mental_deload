@@ -9,6 +9,7 @@ import { toActivity as osmActivity } from "./osm.ts";
 import { courseTime, toActivity as sportamtActivity } from "./sportamt.ts";
 import { childPrice, kindOf, parseListing, parsePage, parseSchedule, toActivity as freizeitActivity } from "./freizeit.ts";
 import { seasonMonths, toActivity as msActivity, type MsAttraction } from "./myswitzerland.ts";
+import { parsePage as krPage, toActivity as krActivity } from "./kinderregion.ts";
 import { parseGeo, pickPlace, placeQueries, toActivity as zoActivity, type ZoCategory } from "./zuerioberland.ts";
 import { openMonths, pageSlug, toActivity as zuerichActivity, type ZtPlace } from "./zuerich.ts";
 import { classify, parsePost, seasonFromTags, strollerFrom, toActivity as sffActivity } from "./swissfamilyfun.ts";
@@ -577,5 +578,39 @@ describe("parseSitemap", () => {
       { loc: "https://a/x/", lastmod: "2026-10-12T08:00:00+00:00" },
       { loc: "https://a/y?a=1&b=2", lastmod: undefined },
     ]);
+  });
+});
+
+describe("kinderregion", () => {
+  const page = (list: string, title: string, highlights: string) => `<div class="backlink"><a href="https://kinderregion.ch/de/" class="breadcrumb_home"></a>
+<a href="https://kinderregion.ch/de/liste/${list}/" class="breaccrumb_listicle"> Name </a><div class="breadcrumb_current"> ${title} </div></div>
+<div class="location_detail_name"> Kerenzerberg (Filzbach) </div><h1>${title}</h1>
+<div class="highlights_box"><ul><li>${highlights}</li><li>E-Fun mit Bob (ab 18 Jahren)</li></ul></div> <!-- End Hightlights Box -->
+<div class="mobile_hide_content"></div>
+<span class="title_big"> Preise </span></div><div class="accordeon_content"><div class="inside_content"> Kinder CHF 5, Erwachsene CHF 10 </div></div>
+<div class="map" data-lat="47.1213" data-long="9.11819"></div>`;
+  const url = "https://kinderregion.ch/de/besuchen/schlitteln-kerenzerberg/";
+
+  it("reads title, town, list, coordinates, children's ages and price", () => {
+    expect(krActivity(url, krPage(page("schlitteln", "Schlitteln Kerenzerberg", "Geeignet für Kinder ab 4 Jahren")))).toEqual({
+      id: "kinderregion:schlitteln-kerenzerberg",
+      source: "kinderregion",
+      title: "Schlitteln Kerenzerberg",
+      url,
+      kind: "Sledding",
+      lat: 47.1213,
+      lng: 9.11819,
+      place: "Kerenzerberg (Filzbach)",
+      months: [12, 1, 2, 3],
+      ageMin: 4,
+      costChf: 5,
+      tags: ["schlitteln"],
+    });
+  });
+
+  it("ignores grown-up extras for the age and leaves out places to sleep and eat", () => {
+    expect(krActivity(url, krPage(page("schlitteln", "Schlitteln Kerenzerberg", "7 km Länge")))?.ageMin).toBeUndefined();
+    expect(krActivity(url, krPage(page("familienhotels", "Hotel Alpina", "Familienzimmer")))).toBeNull();
+    expect(krActivity(url, krPage(page("restaurants-mit-spielplaetzen", "Wirtschaft Schönegg", "Spielplatz")))).toBeNull();
   });
 });
