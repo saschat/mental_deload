@@ -23,7 +23,10 @@ const fabOpen = ref(false);
 
 const isTab = computed(() => !!route.meta.tab);
 const title = computed(() => (route.meta.title as string) ?? "Mental Deload");
-const authProblem = computed(() => connectError.value === "Unauthorized" || connectError.value === "Token expired");
+// The SDK names some rejections ("Unauthorized", "Token expired") and passes others on as the
+// server words them, e.g. "invalid_token: Invalid token: access token is invalid". Socket.IO
+// does not retry a rejected token, so all of them need a new login rather than "Retry".
+const authProblem = computed(() => /unauthori[sz]ed|expired|invalid_token/i.test(connectError.value ?? ""));
 
 let checking = false;
 async function checkReminders() {
@@ -144,6 +147,7 @@ function fab(to: string) {
         <span class="spacer">
           Offline, read-only.
           <template v-if="data.cacheSavedAt">Data from {{ new Date(data.cacheSavedAt).toLocaleString() }}.</template>
+          <template v-if="connectError && data.networkOnline"> ({{ connectError }})</template>
         </span>
         <button class="btn text" style="color: white" @click="retry">Retry</button>
       </div>
