@@ -137,6 +137,7 @@ src/
     importDiff.ts  Import planning: create / update / flag / remove
     icsExport.ts   Reminders .ics export with VALARMs
     activities.ts  Activity index types and the Ideas filters (season, dates, ages, travel)
+    groups.ts      Same outing at many places as one idea: ice rinks, pools …, same-titled events
     picks.ts       The few ideas shown first: dates, distance, sources, weather, variety
   lib/           Browser glue: IndexedDB, notifications, ICS fetch, reminder check
   stores/        Pinia stores (data mirrors the Bazaar collections; ui for toasts/dialogs)

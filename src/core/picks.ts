@@ -2,13 +2,8 @@
 // a sort: what happens on the dates or suits the season, how close it is, how
 // many sources list it, how much the listing says, the weather, and variety.
 
-import { activityCategory, hasId, listings, travelMinutes, type Activity, type ActivityCategory, type ActivityDate, type DatedIdea, type Ideas } from "./activities";
-
-export interface Pick {
-  activity: Activity;
-  /** Dates in the range, for events. */
-  dates?: ActivityDate[];
-}
+import { activityCategory, hasId, listings, travelMinutes, type Activity, type ActivityCategory, type ActivityDate } from "./activities";
+import { entryId, type GroupedIdeas, type IdeaEntry, type IdeaItem } from "./groups";
 
 export interface PickOptions {
   start: string;
@@ -16,9 +11,9 @@ export interface PickOptions {
   /** Chance of rain on the dates in percent, when known. */
   rain?: number;
   favorites?: ReadonlySet<string>;
-  /** Activity ids snoozed for these dates: never picked. */
+  /** Activity and group ids snoozed for these dates: never picked. */
   snoozed?: ReadonlySet<string>;
-  /** How many earlier weekends or holidays each idea was a pick for, by activity id. */
+  /** How many earlier weekends or holidays each idea was a pick for, by entryId. */
   shownBefore?: ReadonlyMap<string, number>;
   count?: number;
 }
@@ -46,39 +41,50 @@ function score(a: Activity, o: PickOptions, dates?: ActivityDate[]): number {
     if (o.rain >= 60) s += a.setting === "outdoor" ? -2 : a.setting === "indoor" ? 1 : 0;
     else if (o.rain <= 25 && a.setting === "outdoor") s += 0.5;
   }
-  // After two weekends as a pick without being marked, make room for others.
-  if (!favorite) s -= 1.5 * Math.max(0, (o.shownBefore?.get(a.id) ?? 0) - 1);
   return s;
 }
 
-/** Up to `count` ideas (6 by default), best first, at most one per category while others are left. */
-export function pickIdeas(ideas: Ideas, o: PickOptions): Pick[] {
+/**
+ * Up to `count` ideas (6 by default), best first, at most one per category while
+ * others are left. A group counts as one idea, led by its best member.
+ */
+export function pickIdeas(ideas: GroupedIdeas, o: PickOptions): IdeaEntry[] {
   const count = o.count ?? 6;
-  const awake = (a: Activity) => !hasId(a, o.snoozed);
-  const scored = [
-    ...ideas.dated
-      .filter((d: DatedIdea) => d.activity.booking !== "closed" && awake(d.activity))
-      .map((d) => ({ pick: { activity: d.activity, dates: d.dates }, s: score(d.activity, o, d.dates) })),
-    ...ideas.places.filter(awake).map((a) => ({ pick: { activity: a } as Pick, s: score(a, o) })),
-  ].sort((x, y) => y.s - x.s || x.pick.activity.title.localeCompare(y.pick.activity.title));
-  const out: Pick[] = [];
+  const scored: { entry: IdeaEntry; s: number }[] = [];
+  for (const entry of [...ideas.dated, ...ideas.places]) {
+    if (entry.group && o.snoozed?.has(entry.group.id)) continue;
+    const items = entry.items
+      .filter((i) => i.activity.booking !== "closed" && !hasId(i.activity, o.snoozed))
+      .map((i) => ({ i, s: score(i.activity, o, i.dates) - rotation(entry, i, o) }))
+      .sort((x, y) => y.s - x.s);
+    if (items.length) scored.push({ entry: { ...entry, items: items.map((x) => x.i) }, s: items[0].s });
+  }
+  scored.sort((x, y) => y.s - x.s || x.entry.items[0].activity.title.localeCompare(y.entry.items[0].activity.title));
+  const out: IdeaEntry[] = [];
   const categories = new Set<ActivityCategory>();
   let events = 0;
   for (const varied of [true, false]) {
-    for (const { pick } of scored) {
+    for (const { entry } of scored) {
       if (out.length >= count) return out;
-      if (out.includes(pick) || (pick.dates && events >= MAX_EVENTS)) continue;
-      const category = activityCategory(pick.activity);
+      const lead = entry.items[0];
+      if (out.includes(entry) || (lead.dates && events >= MAX_EVENTS)) continue;
+      const category = activityCategory(lead.activity);
       if (varied && categories.has(category)) continue;
-      out.push(pick);
+      out.push(entry);
       categories.add(category);
-      if (pick.dates) events += 1;
+      if (lead.dates) events += 1;
     }
   }
   return out;
 }
 
-/** Activity id → start dates of the weekends and holidays it was a pick for. */
+/** After two weekends as a pick without being marked, make room for others. */
+function rotation(entry: IdeaEntry, item: IdeaItem, o: PickOptions): number {
+  if (hasId(item.activity, o.favorites)) return 0;
+  return 1.5 * Math.max(0, (o.shownBefore?.get(entryId(entry)) ?? 0) - 1);
+}
+
+/** Idea id (see entryId) → start dates of the weekends and holidays it was a pick for. */
 export type PickHistory = Record<string, string[]>;
 
 /** Days a pick is remembered. */

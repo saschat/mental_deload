@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Activity, Ideas } from "./activities";
+import { groupedIdeas, type IdeaEntry } from "./groups";
 import { pickIdeas, rememberPicks, shownBefore } from "./picks";
 
 function act(over: Partial<Activity>): Activity {
   return { id: `test:${over.title ?? "x"}`, source: "swissfamilyfun", title: "x", url: "https://example.org", kind: "Hike", place: "Zürich", ...over };
 }
-const ideas = (places: Activity[], dated: Ideas["dated"] = []): Ideas => ({ dated, weekly: [], places });
-const titles = (picks: { activity: Activity }[]) => picks.map((p) => p.activity.title);
+const ideas = (places: Activity[], dated: Ideas["dated"] = [], favorites?: Set<string>) => groupedIdeas({ dated, weekly: [], places }, { favorites });
+const titles = (picks: IdeaEntry[]) => picks.map((p) => p.items[0].activity.title);
 const weekend = { start: "2026-11-14", end: "2026-11-15" };
 
 describe("pickIdeas", () => {
@@ -29,7 +30,7 @@ describe("pickIdeas", () => {
       weekend,
     );
     expect(titles(picks)).toEqual(["Show", "Exhibition", "Pool"]);
-    expect(picks[0].dates).toEqual([{ start: "2026-11-14" }]);
+    expect(picks[0].items[0].dates).toEqual([{ start: "2026-11-14" }]);
   });
 
   it("moves indoor places up when it rains", () => {
@@ -49,7 +50,8 @@ describe("pickIdeas", () => {
     const fav = act({ title: "Fav", category: "museum", carMin: 60 });
     const near = act({ title: "Near", category: "hike", carMin: 5 });
     const full = act({ title: "Full", category: "events", carMin: 5, booking: "closed" });
-    const picks = pickIdeas(ideas([near, fav], [{ activity: full, dates: [{ start: "2026-11-14" }] }]), { ...weekend, favorites: new Set([fav.id]) });
+    const favorites = new Set([fav.id]);
+    const picks = pickIdeas(ideas([near, fav], [{ activity: full, dates: [{ start: "2026-11-14" }] }], favorites), { ...weekend, favorites });
     expect(titles(picks)).toEqual(["Fav", "Near"]);
   });
 
@@ -66,6 +68,16 @@ describe("pickIdeas", () => {
     const twice = new Map([[a.id, 2]]);
     expect(titles(pickIdeas(ideas([a, b]), { ...weekend, count: 1, shownBefore: once }))).toEqual(["A"]);
     expect(titles(pickIdeas(ideas([a, b]), { ...weekend, count: 1, shownBefore: twice }))).toEqual(["B"]);
+  });
+
+  it("counts a group once, led by its best member, and skips a snoozed group", () => {
+    const rinks = [30, 10, 20].map((m) => act({ title: `Eisbahn ${m}`, kind: "Ice skating", category: "winter", carMin: m }));
+    const museum = act({ title: "Museum", category: "museum", carMin: 40 });
+    const picks = pickIdeas(ideas([...rinks, museum]), weekend);
+    expect(titles(picks)).toEqual(["Eisbahn 10", "Museum"]);
+    expect(picks[0].group?.id).toBe("group:rinks");
+    expect(picks[0].items.map((i) => i.activity.title)).toEqual(["Eisbahn 10", "Eisbahn 20", "Eisbahn 30"]);
+    expect(titles(pickIdeas(ideas([...rinks, museum]), { ...weekend, snoozed: new Set(["group:rinks"]) }))).toEqual(["Museum"]);
   });
 });
 

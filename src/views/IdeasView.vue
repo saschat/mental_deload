@@ -5,6 +5,7 @@ import ActivityCard from "@/components/ActivityCard.vue";
 import AddActivitySheet from "@/components/AddActivitySheet.vue";
 import AppIcon from "@/components/AppIcon.vue";
 import BottomSheet from "@/components/BottomSheet.vue";
+import IdeaGroupCard from "@/components/IdeaGroupCard.vue";
 import WeekendWeather from "@/components/WeekendWeather.vue";
 import {
   activityCategory,
@@ -17,7 +18,6 @@ import {
   travelLimitLabel,
   type Activity,
   type ActivityCategory,
-  type ActivityDate,
   type ActivitySourceId,
   type Ideas,
   type SettingFilter,
@@ -25,6 +25,7 @@ import {
 import { climateCell, typicalWeather } from "@/core/climate";
 import { addDays, addMonths, formatDate } from "@/core/dates";
 import { ideaTargets, resolveTarget, type IdeaTarget } from "@/core/ideaTargets";
+import { entryId, groupedIdeas, isGroup, type IdeaEntry, type IdeaItem } from "@/core/groups";
 import { pickIdeas, rememberPicks, shownBefore, type PickHistory } from "@/core/picks";
 import { useActivitiesStore } from "@/stores/activities";
 import { useDataStore } from "@/stores/data";
@@ -103,7 +104,11 @@ function markOf(a: Activity) {
     .find(Boolean);
 }
 
-function setMark(a: { id: string; title: string; also?: { id: string }[] }, mark: "favorite" | "hidden" | null) {
+/** Something a mark can sit on: an activity with its other listings, or a group. */
+type Markable = { id: string; title: string; also?: { id: string }[] };
+const markIds = (x: Markable) => [x.id, ...(x.also ?? []).map((l) => l.id)];
+
+function setMark(a: Markable, mark: "favorite" | "hidden" | null) {
   ui.run(() => data.setIdeaMark(a, mark), mark === "hidden" ? `Hid ${a.title}` : undefined);
 }
 
@@ -111,9 +116,9 @@ function setMark(a: { id: string; title: string; also?: { id: string }[] }, mark
 const snoozedIds = computed(
   () => new Set(data.ideaMarks.filter((m) => m.snoozedUntil && m.snoozedUntil > target.value.start).map((m) => m.activityId)),
 );
-function snoozedUntil(a: Activity): string | undefined {
-  const until = listings(a)
-    .map((l) => data.ideaMarksByActivity.get(l.id)?.snoozedUntil)
+function snoozedUntil(a: Markable): string | undefined {
+  const until = markIds(a)
+    .map((id) => data.ideaMarksByActivity.get(id)?.snoozedUntil)
     .find(Boolean);
   return until && until > target.value.start ? addDays(until, -1) : undefined;
 }
@@ -123,11 +128,11 @@ const SNOOZES = [
   { label: "3 months", until: (d: string) => addMonths(d, 3) },
   { label: "6 months", until: (d: string) => addMonths(d, 6) },
 ];
-const snoozing = ref<Activity | null>(null);
+const snoozing = ref<Markable | null>(null);
 /** The snooze still running on the idea in the sheet, whatever dates are chosen. */
 const snoozingUntil = computed(() => {
   const a = snoozing.value;
-  const until = a && listings(a).map((l) => data.ideaMarksByActivity.get(l.id)?.snoozedUntil).find(Boolean);
+  const until = a && markIds(a).map((id) => data.ideaMarksByActivity.get(id)?.snoozedUntil).find(Boolean);
   return until && until > data.today ? until : undefined;
 });
 function snooze(until: string | null) {
@@ -174,6 +179,8 @@ const categoryCounts = computed(() => countBy(filterIdeas(allIdeas.value, inSour
 /** An idea several sources list counts for each. */
 const sourceCounts = computed(() => countBy(filterIdeas(allIdeas.value, inCategory), (a) => listings(a).map((l) => l.source)));
 const ideas = computed(() => filterIdeas(allIdeas.value, (a) => inCategory(a) && inSource(a)));
+/** Ice rinks, pools … and same-titled events as one idea each; favourites stay on their own. */
+const grouped = computed(() => groupedIdeas(ideas.value, { favorites: favoriteIds.value, hidden: hiddenIds.value }));
 
 const categoryChips = computed(() =>
   CATEGORIES.filter((c) => (categoryCounts.value[c.id] ?? 0) > 0 || selectedCategories.value.includes(c.id)),
@@ -237,7 +244,7 @@ const rain = computed(() =>
   isWeekend.value ? weather.forEvent({ category: "weekend", start: target.value.start, end: target.value.end }, data.today)?.rainProbability : undefined,
 );
 const picks = computed(() =>
-  pickIdeas(ideas.value, {
+  pickIdeas(grouped.value, {
     start: target.value.start,
     end: target.value.end,
     rain: rain.value,
@@ -260,7 +267,7 @@ watch(picks, (p) => {
   pickHistory = rememberPicks(
     pickHistory,
     target.value.start,
-    p.map((x) => x.activity.id),
+    p.map(entryId),
     data.today,
   );
   try {
@@ -272,11 +279,11 @@ watch(picks, (p) => {
 /** A search shows its results straight away instead of picks. */
 const searching = computed(() => text.value.trim() !== "");
 const listOpen = computed(() => ui.ideasBrowseOpen || searching.value);
-const total = computed(() => ideas.value.dated.length + ideas.value.places.length);
+const total = computed(() => grouped.value.dated.length + grouped.value.places.length);
 
 const datedShown = ref(PAGE);
 const placesShown = ref(PAGE);
-watch(ideas, () => {
+watch(grouped, () => {
   datedShown.value = PAGE;
   placesShown.value = PAGE;
 });
@@ -311,8 +318,36 @@ function plannedOn(a: Activity): string | undefined {
   return [a.title, ...(a.also ?? []).map((l) => l.title)].map((t) => planned.value.get(t)).find(Boolean);
 }
 const addTo = computed(() => (data.readOnly ? undefined : target.value.title));
-const adding = ref<{ activity: Activity; dates?: ActivityDate[] } | null>(null);
+const adding = ref<IdeaItem | null>(null);
 const addingTypical = computed(() => (adding.value ? typical(adding.value.activity) : undefined));
+
+// Cards: one listing, or a group that opens to its members.
+function cardProps(it: IdeaItem) {
+  const a = it.activity;
+  return {
+    activity: a,
+    dates: it.dates,
+    typical: typical(a),
+    addTo: addTo.value,
+    planned: plannedOn(a),
+    mark: markOf(a),
+    markable: !data.readOnly,
+    snoozedUntil: snoozedUntil(a),
+  };
+}
+function cardOn(it: IdeaItem) {
+  return {
+    snooze: () => (snoozing.value = it.activity),
+    add: () => (adding.value = it),
+    mark: (m: "favorite" | "hidden" | null) => setMark(it.activity, m),
+  };
+}
+function groupProps(e: IdeaEntry & { group: { id: string; title: string } }) {
+  return { group: e.group, items: e.items, startOpen: searching.value, markable: !data.readOnly, snoozedUntil: snoozedUntil(e.group) };
+}
+function groupOn(e: IdeaEntry & { group: { id: string; title: string } }) {
+  return { snooze: () => (snoozing.value = e.group), hide: () => setMark(e.group, "hidden") };
+}
 
 </script>
 
@@ -415,21 +450,12 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
     <template v-else>
       <section v-if="picks.length && !searching">
         <h2>Picks</h2>
-        <ActivityCard
-          v-for="p in picks"
-          :key="p.activity.id"
-          :activity="p.activity"
-          :dates="p.dates"
-          :typical="p.dates ? undefined : typical(p.activity)"
-          :add-to="addTo"
-          :planned="plannedOn(p.activity)"
-          :mark="markOf(p.activity)"
-          :markable="!data.readOnly"
-          :snoozed-until="snoozedUntil(p.activity)"
-          @snooze="snoozing = p.activity"
-          @add="adding = { activity: p.activity, dates: p.dates }"
-          @mark="(m) => setMark(p.activity, m)"
-        />
+        <template v-for="e in picks" :key="entryId(e)">
+          <IdeaGroupCard v-if="isGroup(e)" v-bind="groupProps(e)" v-on="groupOn(e)">
+            <ActivityCard v-for="it in e.items" :key="it.activity.id" v-bind="cardProps(it)" v-on="cardOn(it)" />
+          </IdeaGroupCard>
+          <ActivityCard v-else v-bind="cardProps(e.items[0])" v-on="cardOn(e.items[0])" />
+        </template>
         <button class="btn tonal browse" :aria-expanded="ui.ideasBrowseOpen" @click="ui.ideasBrowseOpen = !ui.ideasBrowseOpen">
           {{ ui.ideasBrowseOpen ? "Hide the full list" : `Browse all ${total}` }}
           <AppIcon name="chevron" :size="18" class="chev" :class="{ up: ui.ideasBrowseOpen }" />
@@ -437,52 +463,36 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
       </section>
 
       <template v-if="listOpen || !picks.length">
-        <section v-if="ideas.dated.length">
+        <section v-if="grouped.dated.length">
           <h2>
             <button class="section-toggle" :aria-expanded="ui.ideasDatedOpen" @click="ui.ideasDatedOpen = !ui.ideasDatedOpen">
-              On these dates · {{ ideas.dated.length }}
+              On these dates · {{ grouped.dated.length }}
               <AppIcon name="chevron" :size="18" class="chev" :class="{ up: ui.ideasDatedOpen }" />
             </button>
           </h2>
           <template v-if="ui.ideasDatedOpen">
-            <ActivityCard
-              v-for="d in ideas.dated.slice(0, datedShown)"
-              :key="d.activity.id"
-              :activity="d.activity"
-              :dates="d.dates"
-              :add-to="addTo"
-              :planned="plannedOn(d.activity)"
-              :mark="markOf(d.activity)"
-              :markable="!data.readOnly"
-              :snoozed-until="snoozedUntil(d.activity)"
-              @snooze="snoozing = d.activity"
-              @add="adding = { activity: d.activity, dates: d.dates }"
-              @mark="(m) => setMark(d.activity, m)"
-            />
-            <button v-if="ideas.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
-              Show more ({{ ideas.dated.length - datedShown }})
+            <template v-for="e in grouped.dated.slice(0, datedShown)" :key="entryId(e)">
+              <IdeaGroupCard v-if="isGroup(e)" v-bind="groupProps(e)" v-on="groupOn(e)">
+                <ActivityCard v-for="it in e.items" :key="it.activity.id" v-bind="cardProps(it)" v-on="cardOn(it)" />
+              </IdeaGroupCard>
+              <ActivityCard v-else v-bind="cardProps(e.items[0])" v-on="cardOn(e.items[0])" />
+            </template>
+            <button v-if="grouped.dated.length > datedShown" class="btn text more" @click="datedShown += PAGE">
+              Show more ({{ grouped.dated.length - datedShown }})
             </button>
           </template>
         </section>
 
-        <section v-if="ideas.places.length">
-          <h2>Places · {{ ideas.places.length }}</h2>
-          <ActivityCard
-            v-for="a in ideas.places.slice(0, placesShown)"
-            :key="a.id"
-            :activity="a"
-            :typical="typical(a)"
-            :add-to="addTo"
-            :planned="plannedOn(a)"
-            :mark="markOf(a)"
-            :markable="!data.readOnly"
-            :snoozed-until="snoozedUntil(a)"
-            @snooze="snoozing = a"
-            @add="adding = { activity: a }"
-            @mark="(m) => setMark(a, m)"
-          />
-          <button v-if="ideas.places.length > placesShown" class="btn text more" @click="placesShown += PAGE">
-            Show more ({{ ideas.places.length - placesShown }})
+        <section v-if="grouped.places.length">
+          <h2>Places · {{ grouped.places.length }}</h2>
+          <template v-for="e in grouped.places.slice(0, placesShown)" :key="entryId(e)">
+            <IdeaGroupCard v-if="isGroup(e)" v-bind="groupProps(e)" v-on="groupOn(e)">
+              <ActivityCard v-for="it in e.items" :key="it.activity.id" v-bind="cardProps(it)" v-on="cardOn(it)" />
+            </IdeaGroupCard>
+            <ActivityCard v-else v-bind="cardProps(e.items[0])" v-on="cardOn(e.items[0])" />
+          </template>
+          <button v-if="grouped.places.length > placesShown" class="btn text more" @click="placesShown += PAGE">
+            Show more ({{ grouped.places.length - placesShown }})
           </button>
         </section>
       </template>

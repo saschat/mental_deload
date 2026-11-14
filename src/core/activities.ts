@@ -9,6 +9,7 @@ import { addDays, weekday } from "./dates";
 import { categorize, type ActivityCategory } from "./categories";
 import type { CellClimate } from "./climate";
 import { mainTitle, SOURCE_RANK } from "./duplicates";
+import { placeGroup } from "./groups";
 export { distanceKm, ZURICH_HB } from "./geo";
 export { CATEGORIES, categorize, settingFromText, type ActivityCategory } from "./categories";
 import type { ISODate } from "./types";
@@ -163,7 +164,20 @@ export function travelMinutes(a: Activity): { minutes: number; estimated: boolea
   return null;
 }
 
-/** Months (1–12) touched by an inclusive date range. */
+/** "45 min", "1 h 20". */
+export function durationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h} h ${m}` : `${h} h`;
+}
+
+/** "🚗 25 min"; "~" marks an estimate from the distance. Empty when unknown. */
+export function travelLabel(a: Activity): string {
+  const t = travelMinutes(a);
+  return t ? `🚗 ${t.estimated ? "~" : ""}${durationLabel(t.minutes)}` : "";
+}
+
 /** Travel limits offered on the Ideas page and in Settings, in minutes. */
 export const TRAVEL_LIMITS = [30, 45, 60, 90, 120] as const;
 
@@ -174,6 +188,7 @@ export function travelLimitLabel(minutes: number): string {
   return `≤ ${Number.isInteger(h) ? h : `${Math.floor(h)}½`} h`;
 }
 
+/** Months (1–12) touched by an inclusive date range. */
 export function monthsInRange(start: ISODate, end: ISODate): number[] {
   const out = new Set<number>();
   const [sy, sm] = start.split("-").map(Number);
@@ -339,7 +354,8 @@ const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u
 function matchesText(a: Activity, text: string | undefined): boolean {
   const q = text ? fold(text.trim()) : "";
   if (!q) return true;
-  const words = [a.title, a.kind, a.place, ...(a.tags ?? []), ...(a.also ?? []).map((l) => l.title)].join(" ").toLowerCase();
+  // The group name too, so "ice rinks" or "pools" finds every one.
+  const words = [a.title, a.kind, a.place, placeGroup(a)?.title, ...(a.tags ?? []), ...(a.also ?? []).map((l) => l.title)].join(" ").toLowerCase();
   // Both spellings, so "zurich", "zürich" and "zuerich" all match.
   const hay = `${fold(words)} ${words.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")}`;
   return q.split(/\s+/).every((w) => hay.includes(w));

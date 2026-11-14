@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import AppIcon from "@/components/AppIcon.vue";
-import { ageLabel, hikeLine, SOURCE_NAMES, SOURCE_SHORT_NAMES, seasonLabel, travelMinutes, type Activity, type ActivityDate } from "@/core/activities";
+import { ageLabel, hikeLine, SOURCE_NAMES, SOURCE_SHORT_NAMES, seasonLabel, travelLabel, type Activity, type ActivityDate } from "@/core/activities";
 import { formatDate } from "@/core/dates";
 
 const props = defineProps<{
@@ -24,20 +24,7 @@ const emit = defineEmits<{ add: []; mark: ["favorite" | "hidden" | null]; snooze
 
 const MAX_DATES = 3;
 
-function duration(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h} h ${m}` : `${h} h`;
-}
-
-/** Driving time; "~" marks an estimate from the distance. */
-const travel = computed(() => {
-  const t = travelMinutes(props.activity);
-  return t ? `🚗 ${t.estimated ? "~" : ""}${duration(t.minutes)}` : "";
-});
-
-const meta = computed(() => [props.activity.kind, props.activity.place, travel.value].filter(Boolean).join(" · "));
+const meta = computed(() => [props.activity.kind, props.activity.place, travelLabel(props.activity)].filter(Boolean).join(" · "));
 
 const facts = computed(() => {
   const a = props.activity;
