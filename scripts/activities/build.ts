@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 
 import type { Activity, ActivityIndex, ActivitySourceId, ActivitySourceInfo } from "../../src/core/activities.ts";
 import { categorize, settingFromText } from "../../src/core/categories.ts";
-import { findDuplicates } from "../../src/core/duplicates.ts";
+import { findDuplicates, repeatedEvents } from "../../src/core/duplicates.ts";
 import { climateFor } from "./climate.ts";
 import { emptyState, type Context, type CrawlState, type Source } from "./context.ts";
 import { familienausflug } from "./familienausflug.ts";
@@ -61,7 +61,8 @@ function prune(activities: Activity[], today: string): Activity[] {
     const dates = a.dates.filter((d) => (d.end ?? d.start) >= today);
     if (dates.length) out.push({ ...a, dates });
   }
-  return out;
+  const repeats = repeatedEvents(out);
+  return out.filter((a) => !repeats.has(a.id));
 }
 
 async function main() {

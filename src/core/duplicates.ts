@@ -290,3 +290,23 @@ export function findDuplicates(listings: readonly Listing[]): Map<string, string
   }
   return out;
 }
+
+/**
+ * Events one source lists more than once under different ids, with the same
+ * title, place, days and times (KiKuKa and Sportamt post some twice). Returns
+ * the ids to leave out, keeping the lowest. Places are not touched: one name
+ * at two spots is two places (trails, pools).
+ */
+export function repeatedEvents(
+  listings: readonly { id: string; source: string; title: string; place?: string; dates?: unknown[]; weekdays?: number[] }[],
+): Set<string> {
+  const seen = new Set<string>();
+  const out = new Set<string>();
+  for (const l of [...listings].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (!l.dates) continue;
+    const key = JSON.stringify([l.source, l.title.trim().toLowerCase(), l.place ?? "", l.dates, l.weekdays ?? []]);
+    if (seen.has(key)) out.add(l.id);
+    else seen.add(key);
+  }
+  return out;
+}

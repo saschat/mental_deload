@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findDuplicates, mainTitle, titleScore, wordWeights, words, type Listing } from "./duplicates";
+import { findDuplicates, mainTitle, repeatedEvents, titleScore, wordWeights, words, type Listing } from "./duplicates";
 import { findIdeas, mergeDuplicates, sourceShown, type Activity } from "./activities";
 
 /** Listings far from the test spots, so common words ("Museum", "Strandbad") weigh little, as in the real index. */
@@ -176,5 +176,34 @@ describe("mergeDuplicates", () => {
     expect(findIdeas(merged, { ...q, text: "juckerhof" }).places).toHaveLength(1);
     expect(findIdeas(merged, { ...q, text: "Seegraben" }).places).toHaveLength(1);
     expect(findIdeas(merged, { ...q, text: "seegraeben" }).places).toHaveLength(1);
+  });
+});
+
+describe("repeatedEvents", () => {
+  const ev = (id: string, over: object = {}) => ({
+    id,
+    source: "kikuka",
+    title: "Bee-Bots: Lerne die Robotersprache kennen!",
+    place: "PBZ Unterstrass",
+    dates: [{ start: "2026-11-14", time: "10:00–11:00" }],
+    ...over,
+  });
+
+  it("keeps the first of an event a source lists twice", () => {
+    expect(repeatedEvents([ev("kikuka:28655"), ev("kikuka:19837")])).toEqual(new Set(["kikuka:28655"]));
+  });
+
+  it("keeps other times, days, places and sources, and places with one name", () => {
+    expect(
+      repeatedEvents([
+        ev("kikuka:1"),
+        ev("kikuka:2", { dates: [{ start: "2026-11-14", time: "14:00–15:00" }] }),
+        ev("kikuka:3", { dates: [{ start: "2026-11-21", time: "10:00–11:00" }] }),
+        ev("kikuka:4", { place: "PBZ Altstadt" }),
+        ev("gz:5", { source: "gz" }),
+        { id: "osm:a", source: "osm", title: "Freibad" },
+        { id: "osm:b", source: "osm", title: "Freibad" },
+      ]).size,
+    ).toBe(0);
   });
 });
