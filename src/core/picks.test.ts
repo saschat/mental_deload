@@ -53,6 +53,12 @@ describe("pickIdeas", () => {
     expect(titles(picks)).toEqual(["Fav", "Near"]);
   });
 
+  it("leaves snoozed ideas out, also when another source's listing was snoozed", () => {
+    const zoo = act({ title: "Zoo", category: "animals", carMin: 10, also: [{ id: "zuerich:zoo", source: "zuerich", title: "Zoo Zürich", url: "" }] });
+    const pool = act({ title: "Pool", category: "swim", carMin: 20 });
+    expect(titles(pickIdeas(ideas([zoo, pool]), { ...weekend, snoozed: new Set(["zuerich:zoo"]) }))).toEqual(["Pool"]);
+  });
+
   it("makes room for others after two weekends as a pick", () => {
     const a = act({ title: "A", category: "hike", carMin: 10 });
     const b = act({ title: "B", category: "hike", carMin: 20 });

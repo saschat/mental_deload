@@ -16,6 +16,8 @@ export interface PickOptions {
   /** Chance of rain on the dates in percent, when known. */
   rain?: number;
   favorites?: ReadonlySet<string>;
+  /** Activity ids snoozed for these dates: never picked. */
+  snoozed?: ReadonlySet<string>;
   /** How many earlier weekends or holidays each idea was a pick for, by activity id. */
   shownBefore?: ReadonlyMap<string, number>;
   count?: number;
@@ -52,9 +54,12 @@ function score(a: Activity, o: PickOptions, dates?: ActivityDate[]): number {
 /** Up to `count` ideas (6 by default), best first, at most one per category while others are left. */
 export function pickIdeas(ideas: Ideas, o: PickOptions): Pick[] {
   const count = o.count ?? 6;
+  const awake = (a: Activity) => !hasId(a, o.snoozed);
   const scored = [
-    ...ideas.dated.filter((d: DatedIdea) => d.activity.booking !== "closed").map((d) => ({ pick: { activity: d.activity, dates: d.dates }, s: score(d.activity, o, d.dates) })),
-    ...ideas.places.map((a) => ({ pick: { activity: a } as Pick, s: score(a, o) })),
+    ...ideas.dated
+      .filter((d: DatedIdea) => d.activity.booking !== "closed" && awake(d.activity))
+      .map((d) => ({ pick: { activity: d.activity, dates: d.dates }, s: score(d.activity, o, d.dates) })),
+    ...ideas.places.filter(awake).map((a) => ({ pick: { activity: a } as Pick, s: score(a, o) })),
   ].sort((x, y) => y.s - x.s || x.pick.activity.title.localeCompare(y.pick.activity.title));
   const out: Pick[] = [];
   const categories = new Set<ActivityCategory>();

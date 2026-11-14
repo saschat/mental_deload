@@ -10,7 +10,7 @@ import { parseIcs } from "@/core/icsParse";
 import { planImport, stripUndefined, summarize, type ImportPlan, type ImportSummary } from "@/core/importDiff";
 import { planWeekends } from "@/core/weekends";
 import { planSegmentTasks, withDescendants, type SegmentTaskPlan } from "@/core/tasks";
-import type { FamilyEvent, IdeaMark, Kid, Segment, Settings, Source, Task } from "@/core/types";
+import type { FamilyEvent, IdeaMark, ISODate, Kid, Segment, Settings, Source, Task } from "@/core/types";
 import { fetchIcs } from "@/lib/fetchIcs";
 import { idbClear, idbGet, idbSet, SNAPSHOT_KEY, type Snapshot } from "@/lib/idb";
 
@@ -336,16 +336,29 @@ export const useDataStore = defineStore("data", () => {
 
   // Idea marks
   /** Mark an idea as a favourite or not relevant; null removes the mark. */
-  async function setIdeaMark(activity: { id: string; title: string; also?: { id: string }[] }, mark: IdeaMark["mark"] | null) {
+  type MarkedIdea = { id: string; title: string; also?: { id: string }[] };
+
+  /** Saves the star or hide mark and the snooze of an idea together; the doc goes when neither is left. */
+  async function saveIdeaMark(activity: MarkedIdea, change: Pick<IdeaMark, "mark" | "snoozedUntil">) {
     guard();
     // A mark may sit on another source's listing of the same idea.
     const existing = [activity, ...(activity.also ?? [])].map((l) => ideaMarksByActivity.value.get(l.id)).find(Boolean);
-    if (!mark) {
+    const { mark, snoozedUntil } = { mark: existing?.mark, snoozedUntil: existing?.snoozedUntil, ...change };
+    if (!mark && !snoozedUntil) {
       if (existing) await remove(col.ideaMarks, ideaMarks, existing.id);
       return;
     }
-    const doc: IdeaMark = { id: existing?.id ?? newId(), activityId: activity.id, mark, title: activity.title, updatedAt: nowIso() };
+    const doc = stripUndefined({ id: existing?.id ?? newId(), activityId: activity.id, mark, snoozedUntil, title: activity.title, updatedAt: nowIso() } as IdeaMark);
     await put(col.ideaMarks, ideaMarks, doc, !!existing);
+  }
+
+  async function setIdeaMark(activity: MarkedIdea, mark: IdeaMark["mark"] | null) {
+    await saveIdeaMark(activity, { mark: mark ?? undefined });
+  }
+
+  /** Keeps an idea out of the picks until `until`; null picks it again. */
+  async function snoozeIdea(activity: MarkedIdea, until: ISODate | null) {
+    await saveIdeaMark(activity, { snoozedUntil: until ?? undefined });
   }
 
   // Events
@@ -564,6 +577,7 @@ export const useDataStore = defineStore("data", () => {
     deleteKid,
     saveSettings,
     setIdeaMark,
+    snoozeIdea,
     saveEvent,
     newManualEvent,
     deleteEvent,

@@ -17,8 +17,10 @@ const props = defineProps<{
   /** The user's mark; the star and hide buttons only show when `markable`. */
   mark?: "favorite" | "hidden";
   markable?: boolean;
+  /** Last day it is kept out of the picks, when snoozed for the chosen dates. */
+  snoozedUntil?: string;
 }>();
-const emit = defineEmits<{ add: []; mark: ["favorite" | "hidden" | null] }>();
+const emit = defineEmits<{ add: []; mark: ["favorite" | "hidden" | null]; snooze: [] }>();
 
 const MAX_DATES = 3;
 
@@ -122,10 +124,14 @@ const weekly = computed(() => {
           >
         </template>
       </span>
-      <span class="spacer" />
-      <button v-if="markable" class="hide small" @click="emit('mark', mark === 'hidden' ? null : 'hidden')">
-        {{ mark === "hidden" ? "Show again" : "Not relevant" }}
-      </button>
+      <span v-if="markable" class="actions">
+        <button v-if="mark !== 'hidden'" class="hide small" :class="{ on: snoozedUntil }" aria-haspopup="dialog" @click="emit('snooze')">
+          {{ snoozedUntil ? `Snoozed till ${formatDate(snoozedUntil, { day: "numeric", month: "short" })}` : "Snooze" }}
+        </button>
+        <button class="hide small" @click="emit('mark', mark === 'hidden' ? null : 'hidden')">
+          {{ mark === "hidden" ? "Show again" : "Not relevant" }}
+        </button>
+      </span>
     </div>
   </div>
 </template>
@@ -177,8 +183,15 @@ const weekly = computed(() => {
   color: var(--yellow);
 }
 .foot {
+  flex-wrap: wrap;
   align-items: center;
   margin-top: 2px;
+}
+.actions {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  white-space: nowrap;
 }
 .source {
   font-size: 11px;
@@ -194,6 +207,9 @@ const weekly = computed(() => {
   font-size: 12px;
   color: var(--text-2);
   cursor: pointer;
+}
+.hide.on {
+  color: var(--primary);
 }
 .hide:hover {
   color: var(--text);

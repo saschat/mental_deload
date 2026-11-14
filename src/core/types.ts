@@ -112,7 +112,9 @@ export interface IdeaMark {
   id: string;
   /** Activity id in activities.json ("gz:…"); the index ids contain characters doc ids should not. */
   activityId: string;
-  mark: "favorite" | "hidden";
+  mark?: "favorite" | "hidden";
+  /** Left out of the Ideas picks for weekends and holidays starting before this day. */
+  snoozedUntil?: ISODate;
   /** Kept so a mark stays readable after the activity leaves the index. */
   title: string;
   updatedAt: string;

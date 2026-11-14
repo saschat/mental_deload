@@ -23,7 +23,7 @@ import {
   type SettingFilter,
 } from "@/core/activities";
 import { climateCell, typicalWeather } from "@/core/climate";
-import { formatDate } from "@/core/dates";
+import { addDays, addMonths, formatDate } from "@/core/dates";
 import { ideaTargets, resolveTarget, type IdeaTarget } from "@/core/ideaTargets";
 import { pickIdeas, rememberPicks, shownBefore, type PickHistory } from "@/core/picks";
 import { useActivitiesStore } from "@/stores/activities";
@@ -105,6 +105,37 @@ function markOf(a: Activity) {
 
 function setMark(a: { id: string; title: string; also?: { id: string }[] }, mark: "favorite" | "hidden" | null) {
   ui.run(() => data.setIdeaMark(a, mark), mark === "hidden" ? `Hid ${a.title}` : undefined);
+}
+
+// Snoozing: an idea snoozed until a day is left out of the picks for dates starting before it.
+const snoozedIds = computed(
+  () => new Set(data.ideaMarks.filter((m) => m.snoozedUntil && m.snoozedUntil > target.value.start).map((m) => m.activityId)),
+);
+function snoozedUntil(a: Activity): string | undefined {
+  const until = listings(a)
+    .map((l) => data.ideaMarksByActivity.get(l.id)?.snoozedUntil)
+    .find(Boolean);
+  return until && until > target.value.start ? addDays(until, -1) : undefined;
+}
+const SNOOZES = [
+  { label: "1 week", until: (d: string) => addDays(d, 7) },
+  { label: "1 month", until: (d: string) => addMonths(d, 1) },
+  { label: "3 months", until: (d: string) => addMonths(d, 3) },
+  { label: "6 months", until: (d: string) => addMonths(d, 6) },
+];
+const snoozing = ref<Activity | null>(null);
+/** The snooze still running on the idea in the sheet, whatever dates are chosen. */
+const snoozingUntil = computed(() => {
+  const a = snoozing.value;
+  const until = a && listings(a).map((l) => data.ideaMarksByActivity.get(l.id)?.snoozedUntil).find(Boolean);
+  return until && until > data.today ? until : undefined;
+});
+function snooze(until: string | null) {
+  const a = snoozing.value;
+  snoozing.value = null;
+  if (!a) return;
+  const day = until && formatDate(addDays(until, -1), { day: "numeric", month: "short" });
+  ui.run(() => data.snoozeIdea(a, until), day ? `Snoozed ${a.title} till ${day}` : `${a.title} can be picked again`);
 }
 
 /** Matches from every source enabled in Settings, before the category and source chips. */
@@ -211,6 +242,7 @@ const picks = computed(() =>
     end: target.value.end,
     rain: rain.value,
     favorites: favoriteIds.value,
+    snoozed: snoozedIds.value,
     shownBefore: shownBefore(pickHistory, target.value.start),
   }),
 );
@@ -393,6 +425,8 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
           :planned="plannedOn(p.activity)"
           :mark="markOf(p.activity)"
           :markable="!data.readOnly"
+          :snoozed-until="snoozedUntil(p.activity)"
+          @snooze="snoozing = p.activity"
           @add="adding = { activity: p.activity, dates: p.dates }"
           @mark="(m) => setMark(p.activity, m)"
         />
@@ -420,6 +454,8 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
               :planned="plannedOn(d.activity)"
               :mark="markOf(d.activity)"
               :markable="!data.readOnly"
+              :snoozed-until="snoozedUntil(d.activity)"
+              @snooze="snoozing = d.activity"
               @add="adding = { activity: d.activity, dates: d.dates }"
               @mark="(m) => setMark(d.activity, m)"
             />
@@ -440,6 +476,8 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
             :planned="plannedOn(a)"
             :mark="markOf(a)"
             :markable="!data.readOnly"
+            :snoozed-until="snoozedUntil(a)"
+            @snooze="snoozing = a"
             @add="adding = { activity: a }"
             @mark="(m) => setMark(a, m)"
           />
@@ -493,6 +531,18 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
       >
         <span>{{ t.title }}</span>
         <span class="small muted">{{ t.sub }}</span>
+      </button>
+    </BottomSheet>
+
+    <BottomSheet :open="!!snoozing" :title="`Don't pick ${snoozing?.title ?? ''} for`" @close="snoozing = null">
+      <p class="small muted sheet-note">It stays in the full list; picks skip it until then.</p>
+      <button v-for="o in SNOOZES" :key="o.label" class="target-row" @click="snooze(o.until(data.today))">
+        <span>{{ o.label }}</span>
+        <span class="small muted">until {{ formatDate(addDays(o.until(data.today), -1), { day: "numeric", month: "short" }) }}</span>
+      </button>
+      <button v-if="snoozingUntil" class="target-row" @click="snooze(null)">
+        <span>Pick it again</span>
+        <span class="small muted">snoozed till {{ formatDate(addDays(snoozingUntil, -1), { day: "numeric", month: "short" }) }}</span>
       </button>
     </BottomSheet>
 
@@ -646,6 +696,9 @@ const addingTypical = computed(() => (adding.value ? typical(adding.value.activi
 .target-row.selected {
   background: var(--primary-container);
   color: var(--on-primary-container);
+}
+.sheet-note {
+  margin: 0 0 8px;
 }
 .hidden-ideas .chev.up {
   transform: rotate(-90deg);
